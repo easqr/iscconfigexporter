@@ -66,7 +66,7 @@ func Duration(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
 }
 func (c Config) Validate() error {
-	if !validComponent(c.Tenant) {
+	if !portable(c.Tenant) {
 		return errors.New("tenant must be a portable identifier")
 	}
 	u, e := url.Parse(c.BaseURL)
@@ -133,3 +133,5 @@ func (Credentials) String() string { return "[redacted]" }
 func CredentialsFromEnv() Credentials {
 	return Credentials{os.Getenv("ISC_CLIENT_ID"), os.Getenv("ISC_CLIENT_SECRET")}
 }
+
+func (Credentials) GoString() string { return "[redacted]" }

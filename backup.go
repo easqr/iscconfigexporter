@@ -20,6 +20,9 @@ type BackupManager struct {
 
 func (m BackupManager) Cleanup(ctx context.Context, tenant, operation string, c BackupConfig) (CleanupReport, error) {
 	report := CleanupReport{}
+	if e := ctx.Err(); e != nil {
+		return report, e
+	}
 	if !c.Enabled || c.Policy == "disabled" {
 		return report, nil
 	}
@@ -69,6 +72,11 @@ func (m BackupManager) Cleanup(ctx context.Context, tenant, operation string, c 
 	counts := map[string]int{}
 	for _, b := range backups {
 		counts[b.ID]++
+	}
+	for _, r := range records {
+		if r.BackupID != "" && counts[r.BackupID] == 0 {
+			report.Decisions = append(report.Decisions, Decision{r.BackupID, "skip", "registered backup missing from inventory"})
+		}
 	}
 	now := time.Now().UTC()
 	if m.Now != nil {

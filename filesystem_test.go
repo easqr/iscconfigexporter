@@ -106,3 +106,30 @@ func TestPublicationSafety(t *testing.T) {
 		})
 	}
 }
+
+func TestCommitRenameFailure(t *testing.T) {
+	dir := t.TempDir()
+	store := FileStore{Output: dir, beforeCommit: func() error { return os.Mkdir(filepath.Join(dir, "example"), 0700) }}
+	if _, e := store.Publish(context.Background(), snapshot(t, role)); e == nil {
+		t.Fatal("rename failure reported success")
+	}
+	info, e := os.Lstat(filepath.Join(dir, "example"))
+	if e != nil || !info.IsDir() {
+		t.Fatal("unmanaged directory replaced", e)
+	}
+	entries, e := os.ReadDir(filepath.Join(dir, ".isc-snapshots"))
+	if e != nil || len(entries) != 0 {
+		t.Fatal("failed stage retained", entries, e)
+	}
+}
+func TestCancellationBeforeCommit(t *testing.T) {
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	store := FileStore{Output: dir, beforeCommit: func() error { cancel(); return nil }}
+	if _, e := store.Publish(ctx, snapshot(t, role)); !errors.Is(e, context.Canceled) {
+		t.Fatal(e)
+	}
+	if _, e := os.Lstat(filepath.Join(dir, "example")); !errors.Is(e, os.ErrNotExist) {
+		t.Fatal("cancelled publish visible", e)
+	}
+}

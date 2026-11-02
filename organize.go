@@ -111,10 +111,15 @@ func Organize(tenant string, d Download, completed time.Time) (Snapshot, error) 
 		return out, errors.New("export objects must be an array")
 	}
 	selected := map[string]bool{}
+	typePaths := map[string]bool{}
 	for _, s := range d.Types {
 		if !portable(s) {
 			return out, errors.New("unsafe selected type")
 		}
+		if typePaths[strings.ToLower(s)] {
+			return out, errors.New("colliding selected types")
+		}
+		typePaths[strings.ToLower(s)] = true
 		selected[s] = true
 	}
 	out.Manifest = Manifest{Schema: 1, Tenant: tenant, JobID: d.JobID, Completed: completed.UTC(), Types: append([]string{}, d.Types...), Counts: map[string]int{}, Artifacts: []Artifact{}}

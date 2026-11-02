@@ -81,6 +81,9 @@ func (r FileRegistry) Register(ctx context.Context, v Ownership) error {
 	if e = writeSync(root, tmp, append(b, '\n')); e != nil {
 		return e
 	}
+	if e = ctx.Err(); e != nil {
+		return e
+	}
 	if e = root.Rename(tmp, name); e != nil {
 		return e
 	}

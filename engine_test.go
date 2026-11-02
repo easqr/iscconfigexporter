@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -85,4 +86,50 @@ func TestRetry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 	_ = (Engine{Config: c}).read(ctx, func() error { return tempErr{} })
+}
+
+func TestFilters(t *testing.T) {
+	for _, tc := range []struct {
+		include, exclude []string
+		want             []string
+		bad              bool
+	}{{nil, []string{"SOURCE"}, []string{"ROLE"}, false}, {[]string{"SOURCE"}, nil, []string{"SOURCE"}, false}, {[]string{"UNKNOWN"}, nil, nil, true}, {nil, []string{"ROLE", "SOURCE"}, nil, true}} {
+		c := testConfig()
+		c.Include = tc.include
+		c.Exclude = tc.exclude
+		f := &fakeAPI{}
+		_, e := (Engine{c, f}).Fetch(context.Background())
+		if (e != nil) != tc.bad {
+			t.Fatal(tc, e)
+		}
+		if tc.bad {
+			if f.starts != 0 {
+				t.Fatal("started invalid selection")
+			}
+		} else if !reflect.DeepEqual(f.types, tc.want) {
+			t.Fatal(f.types, tc.want)
+		}
+	}
+}
+
+type flakyAPI struct {
+	fakeAPI
+	polls int
+}
+
+func (f *flakyAPI) Status(context.Context, string) (string, error) {
+	f.polls++
+	if f.polls == 1 {
+		return "", tempErr{}
+	}
+	return "COMPLETE", nil
+}
+func TestPollRetry(t *testing.T) {
+	c := testConfig()
+	c.Backoff = "1ns"
+	f := &flakyAPI{}
+	_, e := (Engine{c, f}).Fetch(context.Background())
+	if e != nil || f.polls != 2 || f.starts != 1 {
+		t.Fatal(f, e)
+	}
 }

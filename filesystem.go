@@ -133,6 +133,10 @@ func (s FileStore) Publish(ctx context.Context, snap Snapshot) (Manifest, error)
 		if _, e = hex.DecodeString(suffix); e != nil {
 			return zero, e
 		}
+		oldInfo, oldErr := r.Lstat(old)
+		if oldErr != nil || !oldInfo.IsDir() {
+			return zero, errors.New("generation must be a real directory")
+		}
 		data, e := r.ReadFile(old + "/manifest.json")
 		if e != nil {
 			return zero, e
