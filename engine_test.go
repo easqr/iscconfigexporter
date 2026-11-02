@@ -1,0 +1,88 @@
+package exporter
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+)
+
+type fakeAPI struct {
+	statuses []string
+	starts   int
+	err      error
+	raw      json.RawMessage
+	types    []string
+}
+
+func (f *fakeAPI) Discover(context.Context) ([]string, error) { return []string{"ROLE", "SOURCE"}, nil }
+func (f *fakeAPI) Start(_ context.Context, types []string) (string, error) {
+	f.starts++
+	f.types = types
+	return "job", f.err
+}
+func (f *fakeAPI) Status(context.Context, string) (string, error) {
+	if len(f.statuses) == 0 {
+		return "COMPLETE", nil
+	}
+	s := f.statuses[0]
+	if len(f.statuses) > 1 {
+		f.statuses = f.statuses[1:]
+	}
+	return s, nil
+}
+func (f *fakeAPI) Download(context.Context, string) (json.RawMessage, error) { return f.raw, nil }
+func TestFetch(t *testing.T) {
+	for _, s := range []string{"COMPLETE", "FAILED", "CANCELLED", "FAILED_EXTERNAL_COMMUNICATION", "BOGUS"} {
+		t.Run(s, func(t *testing.T) {
+			f := &fakeAPI{statuses: []string{s}}
+			c := testConfig()
+			c.Include = []string{"ROLE"}
+			out, e := (Engine{c, f}).Fetch(context.Background())
+			if (e == nil) != (s == "COMPLETE") {
+				t.Fatal(e)
+			}
+			if f.starts != 1 || len(f.types) != 1 || out.JobID != "job" {
+				t.Fatal(f, out)
+			}
+		})
+	}
+	f := &fakeAPI{err: errors.New("ambiguous start")}
+	_, e := (Engine{testConfig(), f}).Fetch(context.Background())
+	if e == nil || f.starts != 1 {
+		t.Fatal(e, f.starts)
+	}
+}
+func TestFetchTimeoutCancel(t *testing.T) {
+	c := testConfig()
+	c.Timeout = "1ms"
+	f := &fakeAPI{statuses: []string{"NOT_STARTED"}}
+	_, e := (Engine{c, f}).Fetch(context.Background())
+	if !errors.Is(e, context.DeadlineExceeded) {
+		t.Fatal(e)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, e = (Engine{testConfig(), f}).Fetch(ctx)
+	if !errors.Is(e, context.Canceled) {
+		t.Fatal(e)
+	}
+}
+
+type tempErr struct{}
+
+func (tempErr) Error() string   { return "temporary" }
+func (tempErr) Temporary() bool { return true }
+func TestRetry(t *testing.T) {
+	c := testConfig()
+	c.Backoff = "1ns"
+	n := 0
+	e := (Engine{Config: c}).read(context.Background(), func() error { n++; return tempErr{} })
+	if e == nil || n != 4 {
+		t.Fatal(n, e)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	defer cancel()
+	_ = (Engine{Config: c}).read(ctx, func() error { return tempErr{} })
+}
