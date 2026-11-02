@@ -62,6 +62,9 @@ type Decision struct {
 	Reason string `json:"reason"`
 }
 type Backup struct {
+	CanDelete bool
+	Partial   bool
+
 	ID, Tenant, Status, Provenance string
 	Created                        time.Time
 }
@@ -77,4 +80,9 @@ type BackupAPI interface {
 	List(context.Context, string) ([]Backup, error)
 	Get(context.Context, string, string) (Backup, error)
 	Delete(context.Context, string, string) error
+}
+
+// OwnershipVerifier must provide independent, current evidence; a registry alone is insufficient.
+type OwnershipVerifier interface {
+	Verify(context.Context, Backup, Ownership) (bool, error)
 }

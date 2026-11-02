@@ -13,3 +13,19 @@ SDK beta methods verified in source: ListSpConfigObjects, ExportSpConfig with Ex
 The generated ConfigObject omits unknown envelope fields including signatures. The SDK restores its raw HTTP response body after decoding; the adapter reads that body to preserve all original fields and numeric precision. No separate REST export implementation is required.
 
 Authentication uses the SDK's supported ContextOAuth2 TokenSource, backed by OAuth client credentials. This avoids the generated client's mutable cached token and context-free token acquisition. SDK automatic retries and HTTP logging are disabled. Engine retries bounded transient read errors only (429, 408, 5xx). POST initiation is never retried: an ambiguous failure may leave a remote job and requires operator investigation. API error bodies are withheld because they may contain sensitive data. No live tenant was contacted.
+
+## Configuration Hub ownership limitation
+
+Official Configuration Hub endpoints and pinned SDK v2026 source were reviewed:
+
+- https://developer.sailpoint.com/docs/api/v2026/list-backups/
+- https://developer.sailpoint.com/docs/api/v2026/delete-backup/
+- SDK api_v2026/api_configuration_hub.go and model_backup_response_1.go.
+
+ListBackups returns an unpaginated array (only status filtering is exposed), with jobId, tenant, type, requesterName, created/completed, userCanDelete, isPartial and backupType. DeleteBackup accepts an ID; permissions may still change and return 403, records may disappear (404). COMPLETE plus isPartial=false indicates a fully successful record; userCanDelete must be explicit true for eligibility. Uploaded configurations have distinct endpoints and are not interchangeable with ordinary backups. No independent ownership marker or conditional deletion token is present. requesterName/name/type are not ownership evidence.
+
+Official SaaS configuration documentation describes backups and exports as related operations using the same APIs, but the reviewed contract does not guarantee that a specific SP-Config export job ID is the persistent Configuration Hub backup ID, or that every SP-Config export creates a deletable Configuration Hub record. Shared terminology and similar response fields cannot establish that association. No extra backup creation or upload is performed. We cannot safely populate a Configuration Hub ownership registry from the SP-Config response alone.
+
+Therefore the shipped SDK Backups adapter is an implemented read-only inventory: Delete always returns ErrOwnershipUnavailable without HTTP traffic. It does not auto-register records. BackupManager without an independent verifier lists records, skips all and reports the limitation. Enabling cleanup never bypasses this. FileRegistry is implemented for future proven associations; a registry record is trusted local provenance, not independent remote ownership proof. Protect its location from writes by other users. No production verifier is shipped.
+
+The generic BackupManager implements both retention policies, preview, duplicate detection, newest-success protection (all ties), tenant/creation matching, current-operation protection, state and ownership rechecks, successor availability and partial deletion reports. Its destructive path is tested exclusively with fake independently verified providers. A future platform must supply a genuinely verified BackupAPI and OwnershipVerifier before using that path. Rechecks do not eliminate a remote time-of-check/time-of-use race; the reviewed API has no conditional delete guarantee. The built-in adapter consequently remains non-destructive. A future destructive adapter must resolve that limitation as well as ID association, not simply return true from a verifier.
