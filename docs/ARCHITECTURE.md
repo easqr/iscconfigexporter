@@ -1,6 +1,6 @@
 # Component boundaries
 
-The root package owns Config, Engine, API, Store, Lifecycle, Registry, BackupAPI, Manifest and Snapshot. SDK models remain exclusively in `sdk`. The CLI composes the library. No service or platform persistence assumptions are imposed. API doubles and HTTP RoundTripper doubles exercise the actual adapter without live traffic.
+The root package owns Config, Engine, API, Store, Lifecycle, Registry, BackupAPI, Manifest and Snapshot. SDK models remain exclusively in `sdk`; its optional NewWithConfiguration constructor accepts the native SDK configuration at that boundary. The CLI composes the library. No service or platform persistence assumptions are imposed. API doubles and HTTP RoundTripper doubles exercise the actual adapter without live traffic.
 
 Flow: discover exportable types → validate selection → initiate once → poll COMPLETE → download → validate every envelope → organize → publish → optional cleanup. A successful export is distinct from cleanup success.
 
@@ -23,3 +23,8 @@ The output root is trusted, private operator-controlled storage; os.Root contain
 BackupManager evaluates all candidates before deletion, with disabled cleanup as default. Age uses a strict older-than boundary; `d` is a fixed 24-hour duration. Keep-latest protects all equally newest successful verified backups, even those without deletion permission. Incomplete, failed, partial, unknown, duplicated and metadata-mismatched records are skipped. A live recheck must match enumeration exactly, and a protected successor must still exist. Audit decisions distinguish retain, skip, would_delete, deleted and delete_failed. No raw API error details are surfaced. Service calls lifecycle only after publication and reports cleanup failure independently.
 
 The SDK-backed lifecycle is intentionally non-destructive because reliable SP-Config/Configuration Hub ownership and conditional deletion semantics are undocumented. Registry persistence uses an exclusive mkdir lock, staged file, fsync and atomic rename, restricted modes, duplicate rejection and explicit tenant filtering. It is a trusted local ledger, not a remote authority. No records are auto-created based on names or inferred ID equality. See API.md for the verified boundary and future integration requirements.
+
+
+## Native SDK reuse
+
+Configuration discovery and authentication are delegated to the root SailPoint SDK. One root client supplies Beta and V2026 services; the exporter no longer creates parallel per-version configurations or OAuth token sources. The SDK's retryable HTTP client supplies bounded read retries, backoff and Retry-After handling. Engine handles business-level job polling, not HTTP retries. Adapter gating prevents concurrent mutation of SDK token caches; context cancellation can interrupt gate waits/API requests, but cannot interrupt the SDK's separate native token acquisition. The full review, retained exporter responsibilities and upstream constraints are recorded in SDK_REUSE_AUDIT.md and CONFIGURATION.md.

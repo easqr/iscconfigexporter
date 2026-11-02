@@ -31,8 +31,8 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 	timeout, _ := Duration(e.Config.Timeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var supported []string
-	if err := e.read(ctx, func() error { var err error; supported, err = e.API.Discover(ctx); return err }); err != nil {
+	supported, err := e.API.Discover(ctx)
+	if err != nil {
 		return out, fmt.Errorf("discover: %w", err)
 	}
 	known := map[string]bool{}
@@ -78,13 +78,13 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 	poll, _ := Duration(e.Config.PollInterval)
 	for {
 		var status string
-		err = e.read(ctx, func() error { var err error; status, err = e.API.Status(ctx, id); return err })
+		status, err = e.API.Status(ctx, id)
 		if err != nil {
 			return out, fmt.Errorf("poll export: %w", err)
 		}
 		switch status {
 		case "COMPLETE":
-			err = e.read(ctx, func() error { var err error; out.Raw, err = e.API.Download(ctx, id); return err })
+			out.Raw, err = e.API.Download(ctx, id)
 			if err != nil {
 				return out, fmt.Errorf("download export: %w", err)
 			}
@@ -101,33 +101,6 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 	}
 }
 
-type transient interface{ Temporary() bool }
-
-func (e Engine) read(ctx context.Context, fn func() error) error {
-	d, _ := Duration(e.Config.Backoff)
-	for i := 0; ; i++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		err := fn()
-		if err == nil {
-			return nil
-		}
-		var tr transient
-		if i >= e.Config.Retries || !errors.As(err, &tr) || !tr.Temporary() {
-			return err
-		}
-		if err = wait(ctx, d); err != nil {
-			return err
-		}
-		if d < 30*time.Second {
-			d *= 2
-			if d > 30*time.Second {
-				d = 30 * time.Second
-			}
-		}
-	}
-}
 func wait(ctx context.Context, d time.Duration) error {
 	t := time.NewTimer(d)
 	defer t.Stop()

@@ -1,6 +1,6 @@
 # Verified API findings
 
-Reviewed 2026-11-01 against SailPoint Go SDK v2.7.106 (latest stable module returned by the Go proxy), generated beta API source and official documentation:
+Reviewed 2026-11-01 against SailPoint Go SDK v2.7.106 (latest stable v2 release; v3 is a separate major version), generated beta API source and official documentation:
 
 - https://github.com/sailpoint-oss/golang-sdk/tree/v2.7.106
 - https://developer.sailpoint.com/docs/extensibility/configuration-management/saas-configuration/
@@ -12,7 +12,7 @@ SDK beta methods verified in source: ListSpConfigObjects, ExportSpConfig with Ex
 
 The generated ConfigObject omits unknown envelope fields including signatures. The SDK restores its raw HTTP response body after decoding; the adapter reads that body to preserve all original fields and numeric precision. No separate REST export implementation is required.
 
-Authentication uses the SDK's supported ContextOAuth2 TokenSource, backed by OAuth client credentials. This avoids the generated client's mutable cached token and context-free token acquisition. SDK automatic retries and HTTP logging are disabled. Engine retries bounded transient read errors only (429, 408, 5xx). POST initiation is never retried: an ambiguous failure may leave a remote job and requires operator investigation. API error bodies are withheld because they may contain sensitive data. No live tenant was contacted.
+Configuration/authentication and API construction use the root SDK's NewDefaultConfiguration/NewConfiguration and NewAPIClient. Credentials, token exchange and caching belong to the SDK. SP-Config and Hub share one root client, with a context-aware gate protecting the SDK's mutable caches. The SDK HTTP client's retry engine handles transient GET responses; POST initiation is never retried. No custom token source, OAuth endpoint construction or engine retry loop remains. SDK discovery panic text and API error bodies are withheld. See CONFIGURATION.md for verified native token timeout/refresh limitations and SDK_REUSE_AUDIT.md for the reuse review. No live tenant was contacted.
 
 ## Configuration Hub ownership limitation
 

@@ -1,6 +1,6 @@
 # Dependency and license review
 
-Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106 (Go proxy latest stable checked 2026-11-01). Generated beta SP-Config and v2026 Configuration Hub clients are imported directly, avoiding the root SDK's Viper configuration stack. `go mod tidy` retains the SDK module graph, but the shipped CLI links the runtime modules below. Reviewed local module license files; complete notices are retained in docs/licenses.
+Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106, the latest stable v2 release. The newer v3 major was inspected at v3.1.74 during the native-authentication review; its token-helper limitations are the same, and migration would also change API endpoints, so this change keeps the verified v2 API contract. Native configuration now imports the root SDK and its Viper stack. Runtime modules below were identified with `go list -deps` for ./cmd/isc-exporter. Reviewed local module license files; complete notices are retained in docs/licenses. Viper is used directly only in tests to isolate the SDK's global state; production configuration loading is delegated to the SDK.
 
 | Runtime module | Version | License |
 |---|---|---|
@@ -9,6 +9,19 @@ Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106 (Go proxy la
 | hashicorp/go-cleanhttp | v0.5.2 | MPL-2.0 |
 | golang.org/x/oauth2 | v0.30.0 | BSD-3-Clause |
 | gopkg.in/validator.v2 | v2.0.1 | Apache-2.0 |
+| fsnotify/fsnotify | v1.9.0 | BSD-3-Clause |
+| go-viper/mapstructure/v2 | v2.4.0 | MIT |
+| pelletier/go-toml/v2 | v2.2.4 | MIT |
+| sagikazarmark/locafero | v0.10.0 | MIT |
+| sourcegraph/conc | v0.3.1-0.20240121214520-5f936abd7ae8 | MIT |
+| spf13/afero | v1.14.0 | Apache-2.0 |
+| spf13/cast | v1.9.2 | MIT |
+| spf13/pflag | v1.0.7 | BSD-3-Clause |
+| spf13/viper | v1.20.1 | MIT |
+| subosito/gotenv | v1.6.0 | MIT |
+| golang.org/x/sys | v0.35.0 | BSD-3-Clause |
+| golang.org/x/text | v0.28.0 | BSD-3-Clause |
+| gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 (see its license/notice) |
 
 The SDK requires retryablehttp and validator. MPL is file-level copyleft: do not describe these dependencies as permissively licensed or strip their notices. No dependency source was modified. Any later distribution must preserve the license notices and satisfy the applicable source-availability obligations for the MPL-covered files (upstream source: https://github.com/hashicorp/go-retryablehttp/tree/v0.7.8 and https://github.com/hashicorp/go-cleanhttp/tree/v0.5.2). This implementation has not published or distributed a release artifact or assigned an open-source license to the component itself.
 

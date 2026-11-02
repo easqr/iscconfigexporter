@@ -21,7 +21,6 @@ func TestExternalConsumer(t *testing.T) {
 	}
 	c := exporter.DefaultConfig()
 	c.Tenant = "example"
-	c.BaseURL = "https://example.api.identitynow.com"
 	c.Output = t.TempDir()
 	var service exporter.Exporter = exporter.Service{Engine: exporter.Engine{Config: c, API: api{raw}}, Store: exporter.FileStore{Output: c.Output}}
 	r, e := service.Export(context.Background())

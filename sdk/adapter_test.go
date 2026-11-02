@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	exporter "github.com/elianderson/iscutilities/configexporter"
+	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 	"io"
 	"net/http"
 	"os"
@@ -17,9 +18,8 @@ func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f
 func TestSDKRequests(t *testing.T) {
 	c := exporter.DefaultConfig()
 	c.Tenant = "example"
-	c.BaseURL = "https://example.api.identitynow.com"
 	posts := 0
-	a, e := New(c, exporter.Credentials{ClientID: "id", ClientSecret: "secret"}, roundTrip(func(r *http.Request) (*http.Response, error) {
+	a, e := newTestAdapter(t, c, roundTrip(func(r *http.Request) (*http.Response, error) {
 		body := ""
 		code := 200
 		switch r.URL.Path {
@@ -69,12 +69,11 @@ func TestSDKEndToEnd(t *testing.T) {
 	}
 	c := exporter.DefaultConfig()
 	c.Tenant = "example"
-	c.BaseURL = "https://example.api.identitynow.com"
 	c.Output = t.TempDir()
 	c.Include = []string{"ROLE", "SOURCE"}
 	c.Backup = exporter.BackupConfig{Enabled: true, Policy: "keep_latest"}
 	requests := []string{}
-	a, e := New(c, exporter.Credentials{ClientID: "id", ClientSecret: "secret"}, roundTrip(func(r *http.Request) (*http.Response, error) {
+	a, e := newTestAdapter(t, c, roundTrip(func(r *http.Request) (*http.Response, error) {
 		requests = append(requests, r.Method+" "+r.URL.Path)
 		body := ""
 		code := 200
@@ -114,9 +113,8 @@ func TestSDKEndToEnd(t *testing.T) {
 func TestSDKDoesNotRetryPOSTOrExposeBody(t *testing.T) {
 	c := exporter.DefaultConfig()
 	c.Tenant = "example"
-	c.BaseURL = "https://example.api.identitynow.com"
 	posts := 0
-	a, e := New(c, exporter.Credentials{ClientID: "id", ClientSecret: "secret"}, roundTrip(func(r *http.Request) (*http.Response, error) {
+	a, e := newTestAdapter(t, c, roundTrip(func(r *http.Request) (*http.Response, error) {
 		code := 200
 		body := `{"access_token":"token"}`
 		if r.URL.Path != "/oauth/token" {
@@ -133,4 +131,16 @@ func TestSDKDoesNotRetryPOSTOrExposeBody(t *testing.T) {
 	if e == nil || strings.Contains(e.Error(), "sensitive") || posts != 1 {
 		t.Fatal(posts, e)
 	}
+}
+
+// Native SDK token acquisition uses http.DefaultTransport rather than its API
+// transport. These serial tests intercept both paths without opening a socket.
+func newTestAdapter(t *testing.T, c exporter.Config, transport http.RoundTripper) (*Adapter, error) {
+	t.Helper()
+	c.Backoff = "1ns"
+	original := http.DefaultTransport
+	http.DefaultTransport = transport
+	t.Cleanup(func() { http.DefaultTransport = original })
+	cfg := sailpoint.NewConfiguration(sailpoint.ClientConfiguration{ClientId: "id", ClientSecret: "secret", BaseURL: "https://example.api.identitynow.com", TokenURL: "https://example.api.identitynow.com/oauth/token"})
+	return NewWithConfiguration(c, cfg, transport)
 }

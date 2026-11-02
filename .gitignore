@@ -1,5 +1,6 @@
 /exports/
 /config.json
+/exporter.json
 /ownership.json
 /isc-exporter
 *.test

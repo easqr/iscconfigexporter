@@ -1,6 +1,5 @@
 {
   "tenant": "example",
-  "base_url": "https://example.api.identitynow.com",
   "output": "exports",
   "include": [],
   "exclude": [],

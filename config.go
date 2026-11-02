@@ -5,18 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// Config contains no credentials; credentials are supplied separately to the SDK adapter.
+// Config holds export policy only. Connection and authentication use native SDK configuration.
 type Config struct {
 	Tenant       string       `json:"tenant"`
-	BaseURL      string       `json:"base_url"`
 	Output       string       `json:"output"`
 	Include      []string     `json:"include"`
 	Exclude      []string     `json:"exclude"`
@@ -69,10 +66,7 @@ func (c Config) Validate() error {
 	if !portable(c.Tenant) {
 		return errors.New("tenant must be a portable identifier")
 	}
-	u, e := url.Parse(c.BaseURL)
-	if e != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return errors.New("base_url must be an HTTPS origin")
-	}
+
 	if strings.TrimSpace(c.Output) == "" {
 		return errors.New("output is required")
 	}
@@ -122,16 +116,3 @@ func (c Config) Validate() error {
 	}
 	return nil
 }
-
-// Credentials are intentionally excluded from JSON serialization and formatting.
-type Credentials struct {
-	ClientID     string `json:"-"`
-	ClientSecret string `json:"-"`
-}
-
-func (Credentials) String() string { return "[redacted]" }
-func CredentialsFromEnv() Credentials {
-	return Credentials{os.Getenv("ISC_CLIENT_ID"), os.Getenv("ISC_CLIENT_SECRET")}
-}
-
-func (Credentials) GoString() string { return "[redacted]" }

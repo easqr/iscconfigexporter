@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	exporter "github.com/elianderson/iscutilities/configexporter"
-	"github.com/hashicorp/go-retryablehttp"
 	v2026 "github.com/sailpoint-oss/golang-sdk/v2/api_v2026"
-	"golang.org/x/oauth2"
-	"strings"
 )
 
 // Backups provides read-only inventory. No Configuration Hub DELETE is issued.
@@ -18,20 +15,16 @@ type Backups struct {
 }
 
 func (a *Adapter) Backups(c exporter.Config) *Backups {
-	cfg := v2026.NewConfiguration("", "", strings.TrimRight(c.BaseURL, "/")+"/v2026", "", "", "isc-config-exporter", false)
-	r := retryablehttp.NewClient()
-	r.HTTPClient = a.http
-	r.Logger = nil
-	r.RetryMax = 0
-	cfg.HTTPClient = r
-	return &Backups{a, v2026.NewAPIClient(cfg), c.Tenant}
+	return &Backups{a, a.client.V2026, c.Tenant}
 }
 func (b *Backups) List(ctx context.Context, tenant string) ([]exporter.Backup, error) {
 	if tenant != b.tenant {
 		return nil, errors.New("backup tenant mismatch")
 	}
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, b.adapter.http)
-	ctx = context.WithValue(ctx, v2026.ContextOAuth2, b.adapter.auth.TokenSource(ctx))
+	if err := b.adapter.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer b.adapter.release()
 	v, r, e := b.client.ConfigurationHubAPI.ListBackups(ctx).Execute()
 	defer closeResponse(r)
 	if e = safe(ctx, r, e); e != nil {

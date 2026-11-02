@@ -10,12 +10,12 @@ Requires Go 1.27.2 or newer and a local POSIX filesystem with symlink, hardlink,
 
 ```sh
 go build -o isc-exporter ./cmd/isc-exporter
-cp config.example.json config.json
+cp exporter.example.json exporter.json
 ./isc-exporter -help
-./isc-exporter -config config.json -validate
+./isc-exporter -config exporter.json -validate
 ```
 
-Edit tenant/base_url/output and filters in the configuration before live use. Credentials come exclusively from `ISC_CLIENT_ID` and `ISC_CLIENT_SECRET`, populated through your secret-management environment. Cleanup is disabled by default. Execute `./isc-exporter -config config.json` to export, or add `-cleanup-preview` to force non-destructive cleanup evaluation after export. Preview still performs a remote export and local publication. SIGINT/SIGTERM cancel work. Standard output is a JSON Result; standard error contains structured logs and failures. Cleanup failure returns nonzero after emitting the published result.
+Edit tenant/output and filters in `exporter.json`. Configure connection and authentication using the SDK's native `config.json` (for example, `sail sdk init config`) or its optional `SAIL_*` settings. A secret manager and exporter-specific credential variables are not required. See [native SDK setup](docs/CONFIGURATION.md#native-sdk-connection-and-authentication). Cleanup is disabled by default. Execute `./isc-exporter -config exporter.json` to export, or add `-cleanup-preview` to force non-destructive cleanup evaluation after export. Preview still performs a remote export and local publication. SIGINT/SIGTERM cancel work. Standard output is a JSON Result; standard error contains structured logs and failures. Cleanup failure returns nonzero after emitting the published result.
 
 ## Library usage
 
@@ -24,9 +24,8 @@ Module path: `github.com/elianderson/iscutilities/configexporter`. This reposito
 ```go
 c := exporter.DefaultConfig()
 c.Tenant = "example"
-c.BaseURL = "https://example.api.identitynow.com"
 c.Output = "exports"
-api, err := sdk.New(c, exporter.CredentialsFromEnv(), nil)
+api, err := sdk.New(c, nil)
 if err != nil { return err }
 service := exporter.Service{
     Engine: exporter.Engine{Config: c, API: api},
@@ -36,7 +35,7 @@ service := exporter.Service{
 result, err := service.Export(ctx)
 ```
 
-Import the root module as `exporter` and its `/sdk` package as `sdk`. API, Store, Lifecycle, Registry and OwnershipVerifier are exporter-owned contracts; public signatures do not expose generated SDK models. Engine.Fetch and Organize can also be used independently.
+Import the root module as `exporter` and its `/sdk` package as `sdk`. `sdk.New` calls `sailpoint.NewDefaultConfiguration`; embedded applications may pass an existing native `*sailpoint.Configuration` to `sdk.NewWithConfiguration(c, cfg, nil)` instead. SDK types are confined to that integration boundary. API, Store, Lifecycle, Registry and OwnershipVerifier are exporter-owned contracts; public signatures do not expose generated SDK models. Engine.Fetch and Organize can also be used independently.
 
 ## Output
 
@@ -70,4 +69,9 @@ Tests cover real SDK requests using fake HTTP transports, external-package libra
 - [Dependency licenses](docs/DEPENDENCIES.md)
 - [Implementation progress](PROGRESS.md)
 
-Configuration exports can contain sensitive tenant configuration. Protect output storage and access; artifacts use 0600 and directories 0700. SDK debug logging/retries are disabled. Credentials are never serialized into manifests or configuration; raw API error bodies and object payloads are never logged. Original exported payload fields are preserved, so tenant configuration itself may contain secrets. No encryption or signature verification is provided. Base URL must be a trusted HTTPS origin and redirects are disabled. Output root and registry are trusted private storage, not hostile shared directories. The source code is not assigned an open-source license by this implementation.
+Configuration exports can contain sensitive tenant configuration. Protect output storage and access; artifacts use 0600 and directories 0700. SDK debug/HTTP logging is disabled, and SDK retries are restricted to transient GET responses. Credentials are never serialized into exporter policy or manifests; raw API error bodies and object payloads are never logged. Original exported payload fields are preserved, so tenant configuration itself may contain secrets. No encryption or signature verification is provided. Native SDK BaseURL must be a trusted HTTPS origin; API redirects are disabled. The pinned SDK's token acquisition has separate timeout, redirect and token-cache limitations documented in the configuration reference. Output root and registry are trusted private storage, not hostile shared directories. The source code is not assigned an open-source license by this implementation.
+
+
+## Migration from the initial implementation
+
+Rename your exporter policy to `exporter.json` and remove `base_url`; the SDK now supplies the connection URL. Reserve `config.json` for SDK configuration, rather than copying the old exporter policy there. Replace calls to `sdk.New(c, exporter.CredentialsFromEnv(), transport)` with `sdk.New(c, transport)` or `sdk.NewWithConfiguration(c, nativeConfig, transport)`. The exporter-owned Credentials type/loader and ISC_CLIENT_ID/ISC_CLIENT_SECRET settings have been removed. Native SDK defaults, precedence and limitations are described in the configuration reference. The [SDK reuse audit](docs/SDK_REUSE_AUDIT.md) records the whole-codebase review.

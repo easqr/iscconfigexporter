@@ -6,7 +6,6 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 )
 
 type fakeAPI struct {
@@ -71,23 +70,6 @@ func TestFetchTimeoutCancel(t *testing.T) {
 	}
 }
 
-type tempErr struct{}
-
-func (tempErr) Error() string   { return "temporary" }
-func (tempErr) Temporary() bool { return true }
-func TestRetry(t *testing.T) {
-	c := testConfig()
-	c.Backoff = "1ns"
-	n := 0
-	e := (Engine{Config: c}).read(context.Background(), func() error { n++; return tempErr{} })
-	if e == nil || n != 4 {
-		t.Fatal(n, e)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-	defer cancel()
-	_ = (Engine{Config: c}).read(ctx, func() error { return tempErr{} })
-}
-
 func TestFilters(t *testing.T) {
 	for _, tc := range []struct {
 		include, exclude []string
@@ -109,27 +91,5 @@ func TestFilters(t *testing.T) {
 		} else if !reflect.DeepEqual(f.types, tc.want) {
 			t.Fatal(f.types, tc.want)
 		}
-	}
-}
-
-type flakyAPI struct {
-	fakeAPI
-	polls int
-}
-
-func (f *flakyAPI) Status(context.Context, string) (string, error) {
-	f.polls++
-	if f.polls == 1 {
-		return "", tempErr{}
-	}
-	return "COMPLETE", nil
-}
-func TestPollRetry(t *testing.T) {
-	c := testConfig()
-	c.Backoff = "1ns"
-	f := &flakyAPI{}
-	_, e := (Engine{c, f}).Fetch(context.Background())
-	if e != nil || f.polls != 2 || f.starts != 1 {
-		t.Fatal(f, e)
 	}
 }

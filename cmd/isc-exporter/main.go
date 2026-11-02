@@ -26,7 +26,7 @@ func main() {
 func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	flags := flag.NewFlagSet("isc-exporter", flag.ContinueOnError)
 	flags.SetOutput(errOut)
-	p := flags.String("config", "config.json", "configuration file")
+	p := flags.String("config", "exporter.json", "exporter policy file (SDK connection uses config.json)")
 	validate := flags.Bool("validate", false, "validate local configuration without credentials or network")
 	preview := flags.Bool("cleanup-preview", false, "force cleanup dry-run after successful export publication")
 	if e := flags.Parse(args); e != nil {
@@ -57,7 +57,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 	if *preview {
 		c.Backup.DryRun = true
 	}
-	api, e := sdk.New(c, exporter.CredentialsFromEnv(), nil)
+	api, e := sdk.New(c, nil)
 	if e != nil {
 		return e
 	}
