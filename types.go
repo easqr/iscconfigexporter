@@ -4,6 +4,7 @@ package exporter
 import (
 	"context"
 	"encoding/json"
+	snapfmt "github.com/elianderson/iscutilities/configexporter/snapshot"
 	"time"
 )
 
@@ -27,31 +28,11 @@ type Result struct {
 	Cleanup      CleanupReport `json:"cleanup"`
 	CleanupError string        `json:"cleanup_error,omitempty"`
 }
-type Artifact struct {
-	Path   string `json:"path"`
-	SHA256 string `json:"sha256"`
-	Data   []byte `json:"-"`
-}
-type Changes struct {
-	Created   []string `json:"created"`
-	Modified  []string `json:"modified"`
-	Unchanged []string `json:"unchanged"`
-	Deleted   []string `json:"deleted"`
-}
-type Manifest struct {
-	Schema    int            `json:"schema"`
-	Tenant    string         `json:"tenant"`
-	JobID     string         `json:"job_id"`
-	Completed time.Time      `json:"completed"`
-	Types     []string       `json:"types"`
-	Counts    map[string]int `json:"counts"`
-	Artifacts []Artifact     `json:"artifacts"`
-	Changes   Changes        `json:"changes"`
-}
-type Snapshot struct {
-	Manifest  Manifest
-	Artifacts []Artifact
-}
+type Artifact = snapfmt.Artifact
+type Changes = snapfmt.Changes
+type Manifest = snapfmt.Manifest
+type Snapshot = snapfmt.Snapshot
+
 type CleanupReport struct {
 	Decisions  []Decision `json:"decisions"`
 	Limitation string     `json:"limitation,omitempty"`

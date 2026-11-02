@@ -75,3 +75,9 @@ Configuration exports can contain sensitive tenant configuration. Protect output
 ## Migration from the initial implementation
 
 Rename your exporter policy to `exporter.json` and remove `base_url`; the SDK now supplies the connection URL. Reserve `config.json` for SDK configuration, rather than copying the old exporter policy there. Replace calls to `sdk.New(c, exporter.CredentialsFromEnv(), transport)` with `sdk.New(c, transport)` or `sdk.NewWithConfiguration(c, nativeConfig, transport)`. The exporter-owned Credentials type/loader and ISC_CLIENT_ID/ISC_CLIENT_SECRET settings have been removed. Native SDK defaults, precedence and limitations are described in the configuration reference. The [SDK reuse audit](docs/SDK_REUSE_AUDIT.md) records the whole-codebase review.
+
+## SDK-free snapshot contract
+
+`github.com/elianderson/iscutilities/configexporter/snapshot` exposes manifest/artifact models, strict JSON decoding, canonical identity paths, pinned directory reading, and exporter-format in-memory validation. It imports only the Go standard library. Existing root `Artifact`, `Changes`, `Manifest`, and `Snapshot` remain compatible aliases; root organization and export APIs are unchanged.
+
+Readers choose `snapshot.SnapshotMode` (manifest-listed integrity-checked artifacts) or `snapshot.TreeMode` (current edited configuration inventory; manifest scope and historical provenance). A manifest-free tree must declare `Options.Types`. Root symlinks resolve once; nested inventory links and special files are rejected. See the sibling configdiffer `docs/contracts.md` for the version 1 reader, policy, and report contracts. Ordinary exports and the exporter CLI do not require the differ or Configuration Hub permissions.
