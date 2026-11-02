@@ -1,0 +1,13 @@
+{
+  "tenant": "example",
+  "base_url": "https://example.api.identitynow.com",
+  "output": "exports",
+  "include": [],
+  "exclude": [],
+  "timeout": "10m",
+  "poll_interval": "5s",
+  "retries": 3,
+  "backoff": "1s",
+  "log_level": "info",
+  "backup": {"enabled": false, "policy": "disabled", "dry_run": true, "registry": "ownership.json"}
+}
