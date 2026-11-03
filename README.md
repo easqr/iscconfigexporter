@@ -81,3 +81,15 @@ Rename your exporter policy to `exporter.json` and remove `base_url`; the SDK no
 `github.com/elianderson/iscutilities/configexporter/snapshot` exposes manifest/artifact models, strict JSON decoding, canonical identity paths, pinned directory reading, and exporter-format in-memory validation. It imports only the Go standard library. Existing root `Artifact`, `Changes`, `Manifest`, and `Snapshot` remain compatible aliases; root organization and export APIs are unchanged.
 
 Readers choose `snapshot.SnapshotMode` (manifest-listed integrity-checked artifacts) or `snapshot.TreeMode` (current edited configuration inventory; manifest scope and historical provenance). A manifest-free tree must declare `Options.Types`. Root symlinks resolve once; nested inventory links and special files are rejected. See the sibling configdiffer `docs/contracts.md` for the version 1 reader, policy, and report contracts. Ordinary exports and the exporter CLI do not require the differ or Configuration Hub permissions.
+
+## Optional read-only mapping retrieval
+
+Retrieve Configuration Hub Object Mappings separately from configuration exports:
+
+```sh
+isc-exporter -config exporter-sandbox.json -retrieve-mappings \
+  -mapping-source-org invented-prod \
+  -mapping-output ./mapping-archives/prod-to-sandbox-001
+```
+
+The SDK connection and policy tenant describe the target/current tenant. A new, separate directory receives original `mappings.json` bytes and checksum-bound `provenance.json`; stdout contains publication metadata only. Use `default` for an unassociated source group. Ordinary exports never request mappings or require their permissions. See [mapping retrieval](docs/MAPPINGS.md) for scope, native SDK reuse, local validation, the library API, safe publication, and offline differ handoff.
