@@ -78,13 +78,15 @@ publication, err := (exporter.MappingFileStore{
 For tenant-specific source mappings, import the saved array using the existing differ action:
 
 ```sh
-isc-configdiffer --left /data/production --left-mode snapshot \
-  --right /data/sandbox --right-mode snapshot \
+isc-configdiffer --mode drift \
+  --left /data/production --left-mode snapshot --left-env production \
+  --right /data/sandbox --right-mode snapshot --right-env sandbox \
+  --policy /policies/portable-policy.json \
   --hub ./mapping-archives/prod-to-sandbox-001/mappings.json \
   --hub-source-tenant invented-prod --hub-target-tenant invented-sb
 ```
 
-The saved bytes' SHA-256 can be checked against `provenance.json`. The differ currently takes explicit source/target context and hashes the mapping file; it does not automatically read or attest the sidecar. Its strict importer can reject additional response fields or unsupported active JSONPath expressions, even when retrieval validly preserved them. Retrieval success does not imply a rule is supported or applicable in a comparison. Disabled unsupported paths stay inert; unsupported active rules must never be silently dropped. Hub substitutions remain separate from strict directional environment assertions.
+Use a policy with `version:2`, `id`, and `profile:"isc-portable-v2"` at the policy path above. The saved bytes' SHA-256 can be checked against `provenance.json`. When given the bare array path above, the differ uses explicit source/target context and hashes the file. Passing the bundle directory instead validates `provenance.json` automatically; the sidecar records retrieval context and integrity rather than remote authenticity. Its strict importer can reject additional response fields or unsupported active JSONPath expressions, even when retrieval validly preserved them. Retrieval success does not imply a rule is supported or applicable in a comparison. Disabled unsupported paths stay inert; unsupported active rules must never be silently dropped. Hub substitutions remain separate from strict directional environment assertions.
 
 ## API evidence and verification
 
