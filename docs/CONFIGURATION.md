@@ -35,7 +35,7 @@ Use your existing SDK configuration. The normal file is `config.json`, generated
 }
 ```
 
-This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The SDK also supports SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative; the exporter reads none of these itself. ISC_CLIENT_ID and ISC_CLIENT_SECRET are no longer used.
+This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The SDK also supports SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative; the exporter reads none of these itself.
 
 Pinned SDK lookup order, verified in configuration.go:
 
