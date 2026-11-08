@@ -34,12 +34,15 @@ func (f *fakeAPI) Status(context.Context, string) (string, error) {
 }
 func (f *fakeAPI) Download(context.Context, string) (json.RawMessage, error) { return f.raw, nil }
 func TestFetch(t *testing.T) {
-	for _, s := range []string{"COMPLETE", "FAILED", "CANCELLED", "FAILED_EXTERNAL_COMMUNICATION", "BOGUS"} {
+	for _, s := range []string{"COMPLETE", "FAILED", "CANCELLED", "FAILED_EXTERNAL_COMMUNICATION", "RUNNING", "PENDING", "BOGUS"} {
 		t.Run(s, func(t *testing.T) {
 			f := &fakeAPI{statuses: []string{s}}
 			c := testConfig()
 			c.Include = []string{"ROLE"}
 			out, e := (Engine{c, f}).Fetch(context.Background())
+			if (s == "RUNNING" || s == "PENDING" || s == "FAILED_EXTERNAL_COMMUNICATION") && (e == nil || e.Error() != "unrecognized export job status") {
+				t.Fatalf("unexpected status accepted: %v", e)
+			}
 			if (e == nil) != (s == "COMPLETE") {
 				t.Fatal(e)
 			}
@@ -91,5 +94,17 @@ func TestFilters(t *testing.T) {
 		} else if !reflect.DeepEqual(f.types, tc.want) {
 			t.Fatal(f.types, tc.want)
 		}
+	}
+}
+
+func TestFetchPollingStatuses(t *testing.T) {
+	c := testConfig()
+	c.PollInterval = "1ns"
+	f := &fakeAPI{statuses: []string{"NOT_STARTED", "IN_PROGRESS", "COMPLETE"}, raw: json.RawMessage(`{}`)}
+	if _, err := (Engine{c, f}).Fetch(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.statuses) != 1 || f.statuses[0] != "COMPLETE" || f.starts != 1 {
+		t.Fatal("polling did not reach completion after a single initiation")
 	}
 }

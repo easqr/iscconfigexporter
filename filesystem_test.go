@@ -3,6 +3,7 @@ package exporter
 import (
 	"context"
 	"errors"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-func snapshot(t *testing.T, items string) Snapshot {
+func snapshot(t *testing.T, items string) snapfmt.Snapshot {
 	t.Helper()
 	s, e := Organize("example", download(items), time.Now())
 	if e != nil {

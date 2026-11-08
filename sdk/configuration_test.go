@@ -227,3 +227,24 @@ func TestNativeHTTPClientNotMutated(t *testing.T) {
 		t.Fatal("caller HTTP client mutated or not safely isolated")
 	}
 }
+
+func TestConfigurationRequiresExactJSONFilename(t *testing.T) {
+	for _, name := range []string{"config.yaml", "config.yml", "config.toml", "config.env", "config"} {
+		t.Run(name, func(t *testing.T) {
+			isolateConfig(t)
+			data := []byte(`{"ClientId":"id","ClientSecret":"secret","BaseURL":"https://example.api.identitynow.com"}`)
+			if err := os.WriteFile(name, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := New(configForTest(), nil); err == nil {
+				t.Fatal("accepted an alternate configuration filename")
+			}
+			if err := os.WriteFile("config.json", data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := New(configForTest(), nil); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

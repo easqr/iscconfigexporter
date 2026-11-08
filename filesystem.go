@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"io/fs"
 	"os"
 	"path"
@@ -22,7 +23,7 @@ type FileStore struct {
 	beforeCommit func() error
 }
 
-func validateSnapshot(s Snapshot) error {
+func validateSnapshot(s snapfmt.Snapshot) error {
 	raw := []byte(`{"tenant":`)
 	b, _ := json.Marshal(s.Manifest.Tenant)
 	raw = append(raw, b...)
@@ -42,18 +43,6 @@ func validateSnapshot(s Snapshot) error {
 		return errors.New("snapshot metadata or artifacts inconsistent")
 	}
 	return nil
-}
-func managedPath(p string) bool {
-	parts := strings.Split(p, "/")
-	if len(parts) != 2 || !portable(parts[0]) || !strings.HasPrefix(parts[1], "id-") || !strings.HasSuffix(parts[1], ".json") {
-		return false
-	}
-	id, e := hex.DecodeString(strings.TrimSuffix(strings.TrimPrefix(parts[1], "id-"), ".json"))
-	if e != nil {
-		return false
-	}
-	v, e := objectPath(parts[0], string(id))
-	return e == nil && v == p
 }
 func syncDir(r *os.Root, p string) error {
 	f, e := r.Open(p)
@@ -85,8 +74,8 @@ func token() string {
 	}
 	return hex.EncodeToString(b)
 }
-func (s FileStore) Publish(ctx context.Context, snap Snapshot) (Manifest, error) {
-	var zero Manifest
+func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.Manifest, error) {
+	var zero snapfmt.Manifest
 	if e := ctx.Err(); e != nil {
 		return zero, e
 	}
@@ -115,8 +104,8 @@ func (s FileStore) Publish(ctx context.Context, snap Snapshot) (Manifest, error)
 		return zero, errors.New("snapshot root must be a real directory")
 	}
 	old := ""
-	prior := Manifest{}
-	oldFiles := map[string]Artifact{}
+	prior := snapfmt.Manifest{}
+	oldFiles := map[string]snapfmt.Artifact{}
 	if info, e := r.Lstat(tenant); e == nil {
 		if info.Mode()&os.ModeSymlink == 0 {
 			return zero, errors.New("tenant output exists and is not an exporter pointer")
@@ -145,11 +134,11 @@ func (s FileStore) Publish(ctx context.Context, snap Snapshot) (Manifest, error)
 			return zero, errors.New("invalid previous manifest")
 		}
 		for _, a := range prior.Artifacts {
-			if !managedPath(a.Path) || oldFiles[a.Path].Path != "" {
+			if !snapfmt.ManagedPath(a.Path) || oldFiles[a.Path].Path != "" {
 				return zero, errors.New("invalid previous artifact path")
 			}
 			b, e := r.ReadFile(old + "/" + a.Path)
-			if e != nil || checksum(b) != a.SHA256 {
+			if e != nil || snapfmt.Checksum(b) != a.SHA256 {
 				return zero, errors.New("previous managed artifact changed or missing")
 			}
 			oldFiles[a.Path] = a
@@ -209,7 +198,7 @@ func (s FileStore) Publish(ctx context.Context, snap Snapshot) (Manifest, error)
 		}
 	}
 	m := snap.Manifest
-	m.Changes = Changes{}
+	m.Changes = snapfmt.Changes{}
 	present := map[string]bool{}
 	for _, a := range snap.Artifacts {
 		if e = ctx.Err(); e != nil {

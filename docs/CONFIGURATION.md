@@ -35,12 +35,12 @@ Use your existing SDK configuration. The normal file is `config.json`, generated
 }
 ```
 
-This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The adapter also accepts the SDK-compatible SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET environment variables as an optional alternative.
+This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The adapter also accepts the SDK environment variables SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative.
 
 Connection lookup order:
 
 1. If SAIL_BASE_URL is set, use the SAIL_* environment configuration as a whole (it does not merge missing credentials from files).
-2. Otherwise search for config.json beside the executable, then in the working directory.
+2. Otherwise look for exactly `config.json` beside the executable, then in the working directory. Other filenames and extensions are ignored. A malformed or unreadable selected file returns an error rather than falling through to another file.
 3. Otherwise return a configuration error. The deprecated `~/.sailpoint/config.yaml` is not read.
 
 Missing or malformed configuration is reported as a sanitized error. Configuration loading uses a private parser and does not share the SDK's global Viper state. Help and local -validate do not load SDK configuration or access credentials/network.

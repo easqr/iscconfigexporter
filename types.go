@@ -18,20 +18,16 @@ type Exporter interface {
 	Export(context.Context) (Result, error)
 }
 type Store interface {
-	Publish(context.Context, Snapshot) (Manifest, error)
+	Publish(context.Context, snapfmt.Snapshot) (snapfmt.Manifest, error)
 }
 type Lifecycle interface {
 	Cleanup(context.Context, string, string, BackupConfig) (CleanupReport, error)
 }
 type Result struct {
-	Manifest     Manifest      `json:"manifest"`
-	Cleanup      CleanupReport `json:"cleanup"`
-	CleanupError string        `json:"cleanup_error,omitempty"`
+	Manifest     snapfmt.Manifest `json:"manifest"`
+	Cleanup      CleanupReport    `json:"cleanup"`
+	CleanupError string           `json:"cleanup_error,omitempty"`
 }
-type Artifact = snapfmt.Artifact
-type Changes = snapfmt.Changes
-type Manifest = snapfmt.Manifest
-type Snapshot = snapfmt.Snapshot
 
 type CleanupReport struct {
 	Decisions  []Decision `json:"decisions"`

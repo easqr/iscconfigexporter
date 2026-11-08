@@ -118,14 +118,21 @@ func defaultConfiguration() (*sailpoint.Configuration, error) {
 		if err != nil {
 			return nil, configurationLoadError()
 		}
-		// A private Viper instance preserves the SDK's local file format without
-		// consulting its deprecated home configuration or shared global state.
+		// Select exact filenames; Viper's name search also accepts other extensions.
 		v := viper.New()
-		v.AddConfigPath(filepath.Dir(executable))
-		v.AddConfigPath(".")
-		v.SetConfigName("config")
-		v.SetConfigType("json")
-		if err := v.ReadInConfig(); err != nil {
+		for _, path := range []string{filepath.Join(filepath.Dir(executable), "config.json"), "config.json"} {
+			if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+				continue
+			} else if err != nil {
+				return nil, configurationLoadError()
+			}
+			v.SetConfigFile(path)
+			if err := v.ReadInConfig(); err != nil {
+				return nil, configurationLoadError()
+			}
+			break
+		}
+		if v.ConfigFileUsed() == "" {
 			return nil, configurationLoadError()
 		}
 		if err := v.Unmarshal(&conn); err != nil {

@@ -99,7 +99,7 @@ Use private, trusted storage for the output root and ownership registry, and a t
 
 ## SDK-free snapshot contract
 
-`gitlab.com/easqrtech/iam/iscconfigexporter/snapshot` lets Go applications read and validate exported snapshots without depending on the SailPoint SDK. It provides manifest/artifact models, strict JSON decoding, canonical identity paths and pinned directory reading. Existing root `Artifact`, `Changes`, `Manifest`, and `Snapshot` types remain compatible aliases.
+`gitlab.com/easqrtech/iam/iscconfigexporter/snapshot` lets Go applications read and validate exported snapshots without depending on the SailPoint SDK. It provides manifest/artifact models, strict JSON decoding, canonical identity paths and pinned directory reading.
 
 Readers choose `snapshot.SnapshotMode` (manifest-listed integrity-checked artifacts) or `snapshot.TreeMode` (current edited configuration inventory; manifest scope and historical provenance). A manifest-free tree must declare `Options.Types`. Root symlinks resolve once; nested inventory links and special files are rejected. See the sibling [export input contract](../configdiffer/docs/contracts.md) and [comparison policy/report contract](../configdiffer/docs/policy.md). Ordinary exports and the exporter CLI do not require the differ or Configuration Hub permissions.
 

@@ -71,7 +71,7 @@ publication, err := (exporter.MappingFileStore{
 }).Publish(ctx, saved)
 ```
 
-`MappingAPI` is a separate interface; existing `API` implementations and external exporter consumers remain compatible. `RetrieveMappings` performs no filesystem operations. `MappingFileStore.Publish` revalidates the checksum/count/provenance and copies input bytes before writing. `ExportRoot` enforces output separation when supplied; the CLI always supplies it. Direct library callers must identify the export root or independently choose separate storage. The root library and `snapshot` package remain SDK-free; generated models stay inside `sdk`.
+`MappingAPI` is a separate interface for optional mapping retrieval. `RetrieveMappings` performs no filesystem operations. `MappingFileStore.Publish` revalidates the checksum/count/provenance and copies input bytes before writing. `ExportRoot` enforces output separation when supplied; the CLI always supplies it. Direct library callers must identify the export root or independently choose separate storage. The root library and `snapshot` package remain SDK-free; generated models stay inside `sdk`.
 
 ## Offline differ handoff
 

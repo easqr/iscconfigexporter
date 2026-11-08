@@ -1,6 +1,6 @@
 # Component boundaries
 
-The root package owns Config, Engine, API, Store, Lifecycle, Registry, BackupAPI, Manifest and Snapshot. SDK models remain exclusively in `sdk`; its optional NewWithConfiguration constructor accepts the native SDK configuration at that boundary. The CLI composes the library. No service or platform persistence assumptions are imposed. API doubles and HTTP RoundTripper doubles exercise the actual adapter without live traffic.
+The root package owns Config, Engine, API, Store, Lifecycle, Registry and BackupAPI. The `snapshot` package owns Artifact, Changes, Manifest and Snapshot. SDK models remain exclusively in `sdk`; its optional NewWithConfiguration constructor accepts the native SDK configuration at that boundary. The CLI composes the library. No service or platform persistence assumptions are imposed. API doubles and HTTP RoundTripper doubles exercise the actual adapter without live traffic.
 
 Flow: discover exportable types → validate selection → initiate once → poll COMPLETE → download → validate every envelope → organize → publish → optional cleanup. A successful export is distinct from cleanup success.
 

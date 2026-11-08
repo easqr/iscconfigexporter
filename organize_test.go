@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"encoding/json"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"reflect"
 	"strings"
 	"testing"
@@ -18,7 +19,7 @@ func TestOrganize(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if a.Manifest.Counts["ROLE"] != 1 || checksum(a.Artifacts[0].Data) != a.Artifacts[0].SHA256 {
+	if a.Manifest.Counts["ROLE"] != 1 || snapfmt.Checksum(a.Artifacts[0].Data) != a.Artifacts[0].SHA256 {
 		t.Fatal(a)
 	}
 	s := string(a.Artifacts[0].Data)
@@ -55,8 +56,8 @@ func TestPortablePaths(t *testing.T) {
 			t.Fatal(s)
 		}
 	}
-	a, _ := objectPath("ROLE", "A")
-	b, _ := objectPath("ROLE", "a")
+	a, _ := snapfmt.ObjectPath("ROLE", "A")
+	b, _ := snapfmt.ObjectPath("ROLE", "a")
 	if strings.EqualFold(a, b) {
 		t.Fatal("case collision")
 	}

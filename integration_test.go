@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +57,7 @@ func TestComponentRecovery(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	var manifest Manifest
+	var manifest snapfmt.Manifest
 	if e = json.Unmarshal(data, &manifest); e != nil || len(manifest.Artifacts) != 0 {
 		t.Fatal(manifest, e)
 	}

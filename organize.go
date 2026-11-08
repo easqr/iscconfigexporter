@@ -10,19 +10,16 @@ import (
 	"time"
 )
 
-func decodeJSON(raw []byte) (any, error)        { return snapfmt.DecodeJSON(raw) }
-func checksum(b []byte) string                  { return snapfmt.Checksum(b) }
-func objectPath(typ, id string) (string, error) { return snapfmt.ObjectPath(typ, id) }
-func portable(s string) bool                    { return snapfmt.ValidateTypes([]string{s}) == nil }
+func portable(s string) bool { return snapfmt.ValidateTypes([]string{s}) == nil }
 
 // Organize is pure: it validates the entire download before returning any artifacts.
 // Object array order is preserved; only object map keys are canonicalized.
-func Organize(tenant string, d Download, completed time.Time) (Snapshot, error) {
-	var out Snapshot
+func Organize(tenant string, d Download, completed time.Time) (snapfmt.Snapshot, error) {
+	var out snapfmt.Snapshot
 	if !portable(tenant) || d.JobID == "" {
 		return out, errors.New("invalid export identity")
 	}
-	v, e := decodeJSON(d.Raw)
+	v, e := snapfmt.DecodeJSON(d.Raw)
 	if e != nil {
 		return out, errors.New("invalid export JSON (including duplicate keys)")
 	}
@@ -49,7 +46,7 @@ func Organize(tenant string, d Download, completed time.Time) (Snapshot, error) 
 		typePaths[strings.ToLower(s)] = true
 		selected[s] = true
 	}
-	out.Manifest = Manifest{Schema: 1, Tenant: tenant, JobID: d.JobID, Completed: completed.UTC(), Types: append([]string{}, d.Types...), Counts: map[string]int{}, Artifacts: []Artifact{}}
+	out.Manifest = snapfmt.Manifest{Schema: 1, Tenant: tenant, JobID: d.JobID, Completed: completed.UTC(), Types: append([]string{}, d.Types...), Counts: map[string]int{}, Artifacts: []snapfmt.Artifact{}}
 	sort.Strings(out.Manifest.Types)
 	for _, s := range d.Types {
 		out.Manifest.Counts[s] = 0
@@ -58,43 +55,43 @@ func Organize(tenant string, d Download, completed time.Time) (Snapshot, error) 
 	for _, v := range items {
 		obj, ok := v.(map[string]any)
 		if !ok {
-			return Snapshot{}, errors.New("object envelope is not an object")
+			return snapfmt.Snapshot{}, errors.New("object envelope is not an object")
 		}
 		self, ok := obj["self"].(map[string]any)
 		if !ok {
-			return Snapshot{}, errors.New("missing self metadata")
+			return snapfmt.Snapshot{}, errors.New("missing self metadata")
 		}
 		typ, _ := self["type"].(string)
 		id, _ := self["id"].(string)
 		ver, ok := obj["version"].(json.Number)
 		if !ok {
-			return Snapshot{}, errors.New("missing object version")
+			return snapfmt.Snapshot{}, errors.New("missing object version")
 		}
 		n, e := ver.Int64()
 		if e != nil || n < 1 {
-			return Snapshot{}, errors.New("invalid object version")
+			return snapfmt.Snapshot{}, errors.New("invalid object version")
 		}
 		if _, ok := obj["object"].(map[string]any); !ok {
-			return Snapshot{}, errors.New("missing object payload")
+			return snapfmt.Snapshot{}, errors.New("missing object payload")
 		}
 		if !selected[typ] {
-			return Snapshot{}, errors.New("download contains unselected object type")
+			return snapfmt.Snapshot{}, errors.New("download contains unselected object type")
 		}
-		p, e := objectPath(typ, id)
+		p, e := snapfmt.ObjectPath(typ, id)
 		if e != nil {
-			return Snapshot{}, e
+			return snapfmt.Snapshot{}, e
 		}
 		key := strings.ToLower(p)
 		if seen[key] {
-			return Snapshot{}, fmt.Errorf("duplicate or colliding object identity")
+			return snapfmt.Snapshot{}, fmt.Errorf("duplicate or colliding object identity")
 		}
 		seen[key] = true
 		b, e := json.MarshalIndent(obj, "", "  ")
 		if e != nil {
-			return Snapshot{}, errors.New("cannot serialize object")
+			return snapfmt.Snapshot{}, errors.New("cannot serialize object")
 		}
 		b = append(b, '\n')
-		out.Artifacts = append(out.Artifacts, Artifact{Path: p, SHA256: checksum(b), Data: b})
+		out.Artifacts = append(out.Artifacts, snapfmt.Artifact{Path: p, SHA256: snapfmt.Checksum(b), Data: b})
 		out.Manifest.Counts[typ]++
 	}
 	sort.Slice(out.Artifacts, func(i, j int) bool { return out.Artifacts[i].Path < out.Artifacts[j].Path })

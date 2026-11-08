@@ -82,6 +82,8 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 		if err != nil {
 			return out, fmt.Errorf("poll export: %w", err)
 		}
+		// SP-Config export statuses: https://developer.sailpoint.com/docs/tools/sdk/powershell/beta/models/sp-config-export-job-status/
+		// The pinned Go SDK exposes Status as a string, without enum constants.
 		switch status {
 		case "COMPLETE":
 			out.Raw, err = e.API.Download(ctx, id)
@@ -89,11 +91,11 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 				return out, fmt.Errorf("download export: %w", err)
 			}
 			return out, nil
-		case "NOT_STARTED", "IN_PROGRESS", "RUNNING", "PENDING":
+		case "NOT_STARTED", "IN_PROGRESS":
 			if err = wait(ctx, poll); err != nil {
 				return out, err
 			}
-		case "FAILED", "CANCELLED", "FAILED_EXTERNAL_COMMUNICATION":
+		case "FAILED", "CANCELLED":
 			return out, fmt.Errorf("export job terminated: %s", status)
 		default:
 			return out, errors.New("unrecognized export job status")
