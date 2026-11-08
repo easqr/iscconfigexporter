@@ -64,9 +64,9 @@ Missing or malformed configuration produces an error without exposing file conte
 
 ## Authentication limits
 
-The pinned SDK (v2.7.106) acquires tokens on demand and caches them without expiry-based refresh. A blocked token request cannot be interrupted by the export timeout or cancellation signal: token acquisition uses a separate HTTP client, outside the configured API timeout, transport and redirect policy. Token URLs must use HTTPS without user information or a query string, but token-request redirects follow the SDK's behavior.
+SDK v2.7.106 token requests use a separate HTTP client. They cannot be interrupted by the export context or configured API timeout, and do not use the API transport override or redirect policy. Token URLs must use HTTPS without user information or a query string.
 
-The SDK may print token transport errors to standard output. This can affect scripts expecting JSON output. If a long-running Go application encounters an expired-token failure, recreate its adapter; automatic reauthentication is not provided. Programmatically supplied SDK tokens are also supported.
+Cached tokens are not refreshed by expiry; recreate a long-running application's adapter after an expired-token failure. Token transport errors can appear on standard output, so scripts expecting JSON must account for them. Programmatically supplied SDK tokens are supported. These limitations are tracked in [SDK authentication issue #1](https://gitlab.com/easqrtech/iam/iscconfigexporter/-/work_items/1).
 
 ## Request retries
 

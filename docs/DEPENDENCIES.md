@@ -2,7 +2,7 @@
 
 The CLI uses SailPoint Go SDK **v2.7.106**. The table below lists external modules imported by the CLI, checked against the current dependency graph. Full license texts and notices are retained in [licenses](licenses/).
 
-The exporter source has no assigned open-source license. Dependency licenses do not assign a license to the exporter itself.
+The exporter source has no assigned open-source license. Dependency licenses do not assign a license to the exporter itself. The owner decision is tracked in [source-license issue #6](https://gitlab.com/easqrtech/iam/iscconfigexporter/-/work_items/6).
 
 | Runtime module | Version | License |
 |---|---|---|

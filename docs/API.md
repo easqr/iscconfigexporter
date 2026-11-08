@@ -4,7 +4,7 @@ The exporter uses SailPoint Go SDK **v2.7.106**. The endpoint descriptions below
 
 ## Configuration exports
 
-The Beta SP-Config client provides discovery (`ListSpConfigObjects`), export initiation (`ExportSpConfig` with `IncludeTypes`), status polling (`GetSpConfigExportStatus`) and download (`GetSpConfigExport`). These methods expose no pagination controls. The complete download is buffered in memory, so memory requirements grow with export size. Results expire; download them promptly after completion.
+The Beta SP-Config client provides discovery (`ListSpConfigObjects`), export initiation (`ExportSpConfig` with `IncludeTypes`), status polling (`GetSpConfigExportStatus`) and download (`GetSpConfigExport`). These methods expose no pagination controls. The complete download is buffered in memory, so memory requirements grow with export size; see [memory investigation #5](https://gitlab.com/easqrtech/iam/iscconfigexporter/-/work_items/5). Results expire; download them promptly after completion.
 
 The supported job states are `NOT_STARTED`, `IN_PROGRESS`, `COMPLETE`, `CANCELLED` and `FAILED`. Only `COMPLETE` permits download. The pinned Go SDK represents status as a string; the exporter rejects unrecognized values.
 
@@ -22,9 +22,9 @@ The supplied `sdk.Backups` adapter provides read-only inventory. Its `Delete` me
 
 ## Custom backup integrations
 
-Go applications can supply a `BackupAPI` and `OwnershipVerifier` for a separately verified integration. The retention engine checks ownership, tenant and creation metadata, complete status, explicit deletion permission, duplicate identities and a surviving newest successful backup. It rechecks records before deletion and reports partial failures separately from export publication.
+Custom Go integrations can supply a `BackupAPI` and `OwnershipVerifier`. They must independently establish ownership and safe deletion eligibility, including protection against changes between verification and deletion. A local registry or record rechecks alone do not provide those guarantees. Retention decisions and partial failures are reported separately from snapshot publication.
 
-A registry is local provenance, not independent remote ownership evidence. Rechecks also cannot eliminate a change between verification and deletion. The reviewed deletion API exposes no conditional deletion token. A custom destructive integration must establish both reliable ownership and safe deletion eligibility. The supplied adapter provides neither destructive capability nor a production ownership verifier; destructive-provider tests use local doubles.
+The supplied SDK adapter remains read-only because the reviewed API contract does not establish the required ownership and conditional deletion guarantees. Investigation is tracked in [backup ownership and deletion issue #2](https://gitlab.com/easqrtech/iam/iscconfigexporter/-/work_items/2).
 
 ## Object mappings
 
