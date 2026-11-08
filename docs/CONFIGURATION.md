@@ -1,31 +1,48 @@
 # Configuration reference
 
-Exporter policy is a single JSON document. Unknown fields and trailing documents are rejected. Copy `exporter.example.json` to `exporter.json` and edit it for your tenant. Keep connection settings and credentials in the separate SDK `config.json` file.
+The exporter uses two separate configuration files:
+
+| File | Purpose | Contains credentials? |
+| --- | --- | --- |
+| `exporter.json` | Tenant name, output directory, type filters, timing and backup evaluation | No |
+| `config.json` | SDK connection URL and authentication settings | Yes |
+
+Copy `exporter.example.json` to `exporter.json` and edit it for your tenant. Exporter policy must be a single JSON document with supported fields and field types; unknown fields and trailing content are rejected. SDK `SAIL_*` environment variables can replace `config.json`, as described [below](#native-sdk-connection-and-authentication).
+
+## Exporter policy
+
+Defaults below apply to omitted fields. The example file explicitly sets `backup.dry_run` to `true` and `backup.registry` to `ownership.json`.
 
 | Field | Default | Constraint/meaning |
 |---|---|---|
-| tenant | required | Portable ASCII identifier, max 100 characters, no Windows device names; must exactly match download tenant |
-| output | exports | Nonempty private trusted output root |
+| tenant | required | Required tenant name; must exactly match the downloaded export and follow the identifier rules below |
+| output | exports | Directory for snapshots; use private local storage under your control |
 | include | [] | Empty selects all discovered exportable types; otherwise explicit supported type names |
 | exclude | [] | Supported types removed from selection; duplicates and include overlap rejected |
-| timeout | 10m | Positive Go duration; Service bounds API requests, polling, publication and cleanup; native token acquisition has an upstream limitation below |
+| timeout | 10m | Overall time limit for API requests, polling, snapshot saving and backup evaluation; token acquisition has the separate limit described below |
 | poll_interval | 5s | Positive Go duration |
 | retries | 3 | Additional transient read attempts, integer 0–10 |
 | backoff | 1s | Positive Go duration, SDK exponential read backoff capped at 30s, except server Retry-After |
 | log_level | info | debug, info, warn or error; no sensitive debug payload logging |
-| backup.enabled | false | Cleanup disabled unless true |
-| backup.policy | disabled | disabled, older_than, keep_latest |
+| backup.enabled | false | Enable read-only backup evaluation after an export; disabled by default |
+| backup.policy | disabled | disabled, older_than, keep_latest; these settings do not enable deletion in the CLI |
 | backup.age | empty | Required positive duration for older_than; e.g. 168h or 7d; a day is 24h; forbidden for keep_latest |
-| backup.dry_run | false | Candidate evaluation only; no delete requests |
-| backup.registry | empty | Optional local trusted registry path; example uses ownership.json |
+| backup.dry_run | false | Prevent deletion in a custom backup integration; the supplied CLI integration never deletes |
+| backup.registry | empty | Optional path to local ownership records for a custom integration; records alone do not enable deletion |
 
-Enabled=true with policy=disabled is invalid. A disabled cleanup with a configured retention policy is allowed as a staged configuration, but the policy must still be valid. Types are validated against discovery at execution; local validation checks syntax without network or credentials. An empty final selection fails before POST. Durations accept Go units such as `30s` and `10m`, plus positive whole days such as `7d`.
+`backup.enabled=true` requires `backup.policy` to be `older_than` or `keep_latest`. You can configure a policy while leaving evaluation disabled, but its fields must still be valid. Type filters are checked against the tenant when an export runs; local validation cannot verify which types it supports. If the filters leave no types selected, no export job is started. Durations accept Go units such as `30s` and `10m`, plus positive whole days such as `7d`.
+
+## Identifier rules
+
+Tenant and type names contain 1–100 ASCII letters (`A–Z`, `a–z`), digits, hyphens or underscores, and start with a letter or digit. Names such as `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9` are reserved and cannot be used, regardless of letter case. These restrictions keep directory names usable on different filesystems.
+
+Type names must match the tenant's supported export types exactly, including letter case. A name can satisfy the character rules and still be unsupported by that tenant.
 
 ## Native SDK connection and authentication
 
 Connection and authentication settings use the SailPoint SDK format. The exporter loads these settings from `config.json` or `SAIL_*` environment variables; the SDK handles authentication and token caching. Go applications can supply a `*sailpoint.Configuration` through `sdk.NewWithConfiguration`. Caller-owned configuration and HTTP clients are copied rather than modified.
 
-Use your existing SDK configuration. The normal file is `config.json`, generated if desired with `sail sdk init config`. For example:
+Use an existing SDK `config.json`, or create it manually with the following fields. If the separate **SailPoint CLI** is installed, its optional `sail sdk init config` command can generate the file instead. The SailPoint CLI is not required to run the exporter.
 
 ```json
 {
@@ -55,6 +72,16 @@ The SDK may print token transport errors to standard output. This can affect scr
 
 The `retries` setting controls additional attempts; `backoff` controls the initial delay, capped at 30 seconds. Only GET responses with HTTP 408, 429 or 5xx may retry; POST, unclassified transport/auth failures and permanent errors do not. Delays grow exponentially, up to 30 seconds. A server `Retry-After` value on HTTP 429 or 503 can exceed that cap, but waits remain bounded by the request context.
 
-## Backup retention
+## Backup evaluation
 
-Keep-latest protects every equally newest successful exporter-owned backup. Older-than selects backups created strictly before the age cutoff; a backup at the exact boundary is retained. Both require independent verified ownership, successful nonpartial state, explicit deletion permission and a surviving protected successor. The supplied SDK adapter is inventory-only, regardless of these settings; it reports ownership limitations instead of deleting. See [API capabilities and limits](API.md) for details.
+**The supplied CLI integration is read-only.** It can list Configuration Hub backups and report an ownership limitation, but cannot establish which backups belong to this exporter. It skips unverified records and cannot delete backups. Enabling evaluation, choosing a policy, setting `backup.dry_run=false`, or providing a registry does not change that limit.
+
+`backup.enabled` is `false` by default. When enabled with a valid policy, evaluation runs after a successful export and requires the appropriate Configuration Hub read access. `-cleanup-preview` forces preview behavior for an enabled policy; it still runs an export and saves a snapshot. With evaluation disabled, that option does not enable it.
+
+The result uses the JSON field names `cleanup` and `cleanup_error` for backup evaluation. See [results and errors](OPERATIONS.md#results-and-errors) for their meaning.
+
+### Retention in custom Go integrations
+
+Go applications can supply a separately verified backup integration. In that case, `keep_latest` protects every successful exporter-owned backup tied for newest. `older_than` selects backups created strictly before the age cutoff; a backup at the exact boundary is retained. Both require independently verified ownership, complete nonpartial status, explicit deletion permission and a surviving protected successor.
+
+These retention guarantees describe the library's custom-provider path, not deletion capability in the supplied CLI. See [custom backup integrations](API.md#custom-backup-integrations) for the required ownership and deletion guarantees.

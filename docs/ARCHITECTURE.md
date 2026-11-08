@@ -6,13 +6,13 @@ This document describes component responsibilities and storage guarantees for li
 
 The root package owns Config, Engine, API, Store, Lifecycle, Registry and BackupAPI. The `snapshot` package owns Artifact, Changes, Manifest and Snapshot. SDK models remain exclusively in `sdk`; its optional NewWithConfiguration constructor accepts the native SDK configuration at that boundary. The CLI composes the library. No service or platform persistence assumptions are imposed.
 
-Flow: discover exportable types → validate selection → initiate once → poll COMPLETE → download → validate every envelope → organize → publish → optional cleanup. A successful export is distinct from cleanup success.
+Flow: discover exportable types → validate selection → initiate once → poll COMPLETE → download → validate every envelope → organize → publish → optional backup evaluation. A successful export is distinct from backup evaluation success.
 
 Organization is pure. It requires matching tenant, selected types, nonempty stable identity, positive integer version and an object payload. Unknown fields and signatures survive. JSON keys are sorted using encoding/json; arrays keep source order and numbers use json.Number to avoid float precision loss. Duplicate JSON keys are rejected. Exporter-generated completion timestamps are stored in the manifest; timestamps present in exported payloads are preserved. This is deterministic JSON, not a cryptographic JSON canonicalization standard; no signatures are regenerated or claimed verified.
 
 IDs become `id-<UTF-8 hex>.json`, a reversible portable encoding that avoids colon substitution and case-fold collisions. Slash, backslash, control characters, dot identities and IDs over 100 bytes fail validation. Tenant/type names use restricted portable identifiers; device names are forbidden. Case-folded path collisions fail closed.
 
-Consumers use Manifest.Artifacts (relative paths, SHA-256), Counts, Types, JobID, Completed and Changes. Artifacts contain the complete original object envelope; top-level download metadata remains operational input, not individual object content. Fetch and Organize may be used independently of filesystem publication.
+The [snapshot reference](SNAPSHOTS.md) describes filenames, manifest fields and reader modes. Go consumers use `Manifest.Artifacts` (relative paths and SHA-256 checksums), `Counts`, `Types`, `JobID`, `Completed` and `Changes`. Artifacts contain the complete original object envelope; top-level download metadata remains operational input, not individual object content. Fetch and Organize may be used independently of filesystem publication.
 
 ## Filesystem publication
 

@@ -1,49 +1,50 @@
 # ISC Configuration Exporter
 
-A Go module and command-line tool for exporting SailPoint Identity Security Cloud (ISC) configuration to complete, deterministic filesystem snapshots. It uses the official SailPoint Go SDK and supports optional backup inventory and retention evaluation. **The supplied Configuration Hub adapter cannot delete backups**; see [API findings](docs/API.md) for the limitations.
+A Go module and command-line tool for exporting SailPoint Identity Security Cloud (ISC) configuration to local snapshots. Each snapshot contains the exported configuration files and a manifest describing them. It uses the official SailPoint Go SDK and supports optional read-only backup evaluation. The supplied integration cannot delete backups; see [API capabilities and limits](docs/API.md).
 
 The tool exports configuration; it does not import or restore it, compare environments, schedule exports, or publish them to Git or remote storage.
 
 ## Build and run
 
-Requires Go 1.27.2 or newer and a local POSIX filesystem with symlink, hardlink, directory fsync and atomic rename support (tested on macOS). Network access is needed to download build dependencies. Run these commands from the repository root:
+Requires Go 1.27.2 or newer, network access to download build dependencies, and supported local storage. The exporter is tested on macOS; Windows and network filesystems are unsupported. See [storage requirements](docs/OPERATIONS.md#snapshot-storage).
 
-```sh
-go build -o isc-exporter ./cmd/isc-exporter
-cp exporter.example.json exporter.json
-./isc-exporter -help
-./isc-exporter -config exporter.json -validate
-```
+Run these steps from the repository root:
 
-Edit the tenant, output directory and filters in `exporter.json`. Configure connection and authentication separately using the SDK's native `config.json` (for example, `sail sdk init config`) or its optional `SAIL_*` settings. See [native SDK setup](docs/CONFIGURATION.md#native-sdk-connection-and-authentication). Local `-validate` checks require no credentials or network access.
+1. Build the command-line tool:
 
-Run an export:
+   ```sh
+   go build -o isc-exporter ./cmd/isc-exporter
+   ```
 
-```sh
-./isc-exporter -config exporter.json
-```
+2. Create the exporter policy:
 
-Cleanup is disabled by default. Add `-cleanup-preview` to force non-destructive cleanup evaluation after export. Preview still performs a remote export and local publication. SIGINT/SIGTERM request cancellation; see the [configuration reference](docs/CONFIGURATION.md) for SDK authentication timeout limitations. Standard output contains a JSON result; standard error contains structured logs and failures. Cleanup failure returns a nonzero exit status after emitting the published result. Use `-help` for command-line options.
+   ```sh
+   cp exporter.example.json exporter.json
+   ```
 
-## Library usage
+   Edit `exporter.json` to set your tenant, output directory and type filters. See the [configuration reference](docs/CONFIGURATION.md) for policy fields.
 
-Module path: `gitlab.com/easqrtech/iam/iscconfigexporter`. This module is published on GitLab.
+3. Configure the SDK connection and credentials in a separate `config.json`, or use `SAIL_*` environment variables. Follow [SDK connection setup](docs/CONFIGURATION.md#native-sdk-connection-and-authentication). `exporter.json` does not contain credentials.
 
-```go
-c := exporter.DefaultConfig()
-c.Tenant = "example"
-c.Output = "exports"
-api, err := sdk.New(c, nil)
-if err != nil { return err }
-service := exporter.Service{
-    Engine: exporter.Engine{Config: c, API: api},
-    Store: exporter.FileStore{Output: c.Output},
-    Lifecycle: exporter.BackupManager{API: api.Backups(c)},
-}
-result, err := service.Export(ctx)
-```
+4. Check the local policy and options:
 
-Import the root module as `exporter` and its `/sdk` package as `sdk`. The example assumes an existing `ctx` and returns errors to its caller. `sdk.New` loads the native SDK configuration; embedded applications may pass an existing `*sailpoint.Configuration` to `sdk.NewWithConfiguration(c, cfg, nil)` instead. `Engine.Fetch` and `Organize` can also be used independently. See [architecture](docs/ARCHITECTURE.md) for component interfaces and extension points.
+   ```sh
+   ./isc-exporter -config exporter.json -validate
+   ```
+
+   Expect `configuration valid`. This check does not load credentials, contact ISC, or verify API access.
+
+5. Run an export:
+
+   ```sh
+   ./isc-exporter -config exporter.json
+   ```
+
+   A successful export writes a JSON result to standard output and saves a snapshot under the configured output directory. With tenant `example` and the default output directory, look for `exports/example/manifest.json`. See [results and errors](docs/OPERATIONS.md#results-and-errors) for a sample result and exit-status behavior.
+
+Use `./isc-exporter -help` for command-line options. Backup evaluation is disabled by default. `-cleanup-preview` evaluates an enabled backup policy after exporting; it still creates a remote export job and saves a local snapshot. See [backup evaluation](docs/CONFIGURATION.md#backup-evaluation).
+
+Ctrl+C or SIGTERM requests cancellation. See [authentication limits](docs/CONFIGURATION.md#authentication-limits) for token requests that cannot be interrupted.
 
 ## Output
 
@@ -56,54 +57,56 @@ exports/
     manifest.json
 ```
 
-Object paths are derived from the export envelope's `self.type` and `self.id`:
-`<self.type>/id-<lowercase hexadecimal encoding of the UTF-8 bytes of self.id>.json`.
-The ID is read from `self.id`, rather than the nested `object.id` or `self.name`.
-Each byte becomes two hexadecimal characters, so a 32-character ASCII ID produces
-64 hexadecimal characters in the filename. This is a deterministic, reversible
-encoding, not a generated GUID, a hash, or encryption.
+`exports/example` is a symbolic link to the latest saved snapshot. Each object file contains its exported configuration record, including the original metadata and any unknown fields. Filenames encode the record's ID; the original ID and name remain readable inside the JSON.
 
-For example, an envelope containing:
+The manifest lists exported types, object counts, file checksums and changed paths. Type filters determine which types appear in the current snapshot. Unchanged files retain their modification times, and older snapshot directories remain on disk for recovery.
 
-```json
-{
-  "version": 1,
-  "self": { "type": "ROLE", "id": "abc123", "name": "Example role" },
-  "object": {}
+Keep snapshot files read-only; use a separate copy if you need to edit configuration. For filename rules, manifest fields and Go reader modes, see [snapshot files and readers](docs/SNAPSHOTS.md). For disk management and recovery, see [operations](docs/OPERATIONS.md).
+
+## Library usage
+
+Module path: `gitlab.com/easqrtech/iam/iscconfigexporter`. The following function uses SDK connection settings configured as above and returns the export result or an error:
+
+```go
+package example
+
+import (
+    "context"
+
+    exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+    "gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
+)
+
+func exportConfiguration(ctx context.Context) (exporter.Result, error) {
+    c := exporter.DefaultConfig()
+    c.Tenant = "example"
+    c.Output = "exports"
+    api, err := sdk.New(c, nil)
+    if err != nil {
+        return exporter.Result{}, err
+    }
+    service := exporter.Service{
+        Engine: exporter.Engine{Config: c, API: api},
+        Store: exporter.FileStore{Output: c.Output},
+    }
+    return service.Export(ctx)
 }
 ```
 
-is written to `ROLE/id-616263313233.json`. Hex encoding preserves the exact ID
-while avoiding special characters, substitution collisions, and case collisions
-on filesystems that treat uppercase and lowercase filenames as equivalent.
-The original `self.id` and `self.name` remain readable inside the JSON file.
+Go applications can also supply SDK configuration with `sdk.NewWithConfiguration`, or use `Engine.Fetch` and `Organize` separately. See [architecture](docs/ARCHITECTURE.md) for component interfaces and extension points, and [snapshot files and readers](docs/SNAPSHOTS.md#go-readers) for reading snapshots without the SailPoint SDK.
 
-Each object retains its complete exported envelope and unknown fields. Only map keys are ordered; array order and numeric precision are retained. Manifest records tenant, operation, completion time, selected types, counts, relative artifact paths, SHA-256 checksums and created/modified/unchanged/deleted paths. Filtered exports replace the current managed snapshot with the selected types. Unmanaged regular files are carried forward; collisions and nested symlinks fail closed.
+## Optional mapping retrieval
 
-Snapshots publish atomically through the tenant symlink. Consumers needing multi-file consistency must call CurrentPath once and use that resolved generation. Unchanged objects retain inode/mtime. Old generations remain for recovery and consume disk; treat all generations as read-only. See [architecture](docs/ARCHITECTURE.md) for durability, locking and recovery limits.
+Configuration Hub Object Mappings can be retrieved separately into an archive containing `mappings.json` and `provenance.json`. Ordinary exports never request mappings or require their permissions. See [mapping retrieval](docs/MAPPINGS.md) for CLI examples, permissions, the library API and offline differ handoff.
 
 ## Operations and security
 
-
 - [Documentation overview](docs/README.md)
 - [Configuration reference](docs/CONFIGURATION.md)
-- [Operational behavior and recovery](docs/OPERATIONS.md)
+- [Operations and troubleshooting](docs/OPERATIONS.md)
 - [Live-tenant validation checklist](docs/LIVE_VALIDATION.md)
 - [Dependency licenses](docs/DEPENDENCIES.md)
 
-Configuration exports can contain secrets. Protect output storage and access; files use permissions 0600 and directories 0700. Exported payloads are preserved without redaction. No encryption or signature verification is provided. Exporter logs omit raw API error bodies and object payloads, and credentials are not written to exporter policy or manifests.
+Configuration exports can contain secrets. Protect output storage and access; files use permissions 0600 and directories 0700, allowing access only to the owning user. Exported payloads are preserved without redaction. No encryption or signature verification is provided. Exporter logs omit raw API error bodies and object payloads, and SDK credentials are not written to exporter policy or manifests.
 
-Use private, trusted storage for the output root and ownership registry, and a trusted HTTPS origin for the SDK connection. See the [configuration reference](docs/CONFIGURATION.md) for SDK authentication, logging, timeout, redirect and token-cache limitations. The source code has no assigned open-source license; dependency notices are linked above.
-
-
-
-
-## SDK-free snapshot contract
-
-`gitlab.com/easqrtech/iam/iscconfigexporter/snapshot` lets Go applications read and validate exported snapshots without depending on the SailPoint SDK. It provides manifest/artifact models, strict JSON decoding, canonical identity paths and pinned directory reading.
-
-Readers choose `snapshot.SnapshotMode` (manifest-listed integrity-checked artifacts) or `snapshot.TreeMode` (current edited configuration inventory; manifest scope and historical provenance). A manifest-free tree must declare `Options.Types`. Root symlinks resolve once; nested inventory links and special files are rejected. See the sibling [export input contract](../configdiffer/docs/contracts.md) and [comparison policy/report contract](../configdiffer/docs/policy.md). Ordinary exports and the exporter CLI do not require the differ or Configuration Hub permissions.
-
-## Optional read-only mapping retrieval
-
-Configuration Hub Object Mappings can be retrieved separately into an archive containing `mappings.json` and `provenance.json`. Ordinary exports never request mappings or require their permissions. See [mapping retrieval](docs/MAPPINGS.md) for CLI examples, permissions, the library API and offline differ handoff.
+Use private storage under your control and an HTTPS SDK connection URL you trust. See [configuration](docs/CONFIGURATION.md) for authentication and logging limitations. The source code has no assigned open-source license; dependency notices are linked above.

@@ -18,7 +18,7 @@ The V2026 `ListBackups` method returns an array of backup records. It exposes st
 
 The reviewed SDK contract does not establish that an SP-Config export job ID identifies a persistent Configuration Hub backup, or that every export creates a deletable backup. Names, requesters, types and matching IDs are insufficient evidence of exporter ownership. The exporter does not create extra backups, upload configurations or infer registry records from export responses.
 
-The supplied `sdk.Backups` adapter provides read-only inventory. Its `Delete` method returns `ErrOwnershipUnavailable` without issuing an HTTP request. Without an independent ownership verifier, `BackupManager` lists records, skips them and reports the limitation. Enabling cleanup or supplying a local registry does not enable deletion.
+The supplied `sdk.Backups` adapter provides read-only inventory. Its `Delete` method returns `ErrOwnershipUnavailable` without issuing an HTTP request. Without an independent ownership verifier, `BackupManager` lists records, skips them and reports the limitation. Enabling backup evaluation or supplying a local registry does not enable deletion.
 
 ## Custom backup integrations
 

@@ -5,7 +5,8 @@ Start with the [project README](../README.md) for purpose, build instructions an
 ## Usage and operations
 
 - [Configuration](CONFIGURATION.md): exporter policy, SDK connection settings, authentication limits and retries.
-- [Operations and recovery](OPERATIONS.md): results, snapshot handling, interrupted exports, locks and local rollback.
+- [Operations and troubleshooting](OPERATIONS.md): results, common errors, interrupted exports, locks and local rollback.
+- [Snapshot files and readers](SNAPSHOTS.md): filenames, manifest fields, saved versions and Go reader modes.
 - [Mapping retrieval](MAPPINGS.md): optional CLI and library usage, archive format and differ handoff.
 - [Live-tenant validation](LIVE_VALIDATION.md): checklist for repeat operator verification.
 

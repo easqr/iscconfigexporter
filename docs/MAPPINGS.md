@@ -1,6 +1,6 @@
 # Optional Configuration Hub mapping retrieval
 
-Mapping retrieval is a separate read-only operation. It reuses the SDK connection settings and V2026 Configuration Hub client. It does not run SP-Config discovery, start an export or backup, poll a job, run cleanup, or mutate tenant data. Ordinary configuration exports never call mapping endpoints and require no additional mapping permission.
+Mapping retrieval saves Configuration Hub Object Mappings to a separate local archive. It reads tenant data without changing it, and does not run a configuration export or backup evaluation. Ordinary configuration exports do not require mapping permissions.
 
 ## CLI
 
@@ -16,15 +16,15 @@ The policy's `tenant` declares the target tenant (for example `invented-sb`). Na
 
 `-mapping-source-org` is required. The SDK fetches mappings between that source organization and the authenticated current organization. Use the literal `default` for mappings not associated with a particular source organization. `default` is a group selector, **not** an asserted source tenant. Offline consumers must explicitly decide how to bind that group to a real comparison context.
 
-`-mapping-output` is required and must be a **new directory**, outside the configured configuration export tree. Ancestor and descendant overlap, including overlap through existing symlinks, is rejected before SDK loading. A later retrieval requires another new directory; existing bundles are never refreshed in place. Mapping-only options without `-retrieve-mappings`, and retrieval combined with `-cleanup-preview`, are rejected. Even if backup cleanup is enabled in the exporter policy, retrieval never invokes it.
+`-mapping-output` is required and must be a **new directory**, outside the configured configuration export tree. The archive cannot be inside the export directory or contain that directory, including through symbolic links. These checks run before credentials are loaded. A later retrieval requires another new directory; existing bundles are never refreshed in place. Mapping-only options without `-retrieve-mappings`, and retrieval combined with `-cleanup-preview`, are rejected. Even if backup evaluation is enabled in the exporter policy, retrieval does not run it.
 
 Optional `-mapping-export-job EXISTING-JOB-ID` records operator-supplied correlation with an earlier export. The endpoint is synchronous and returns no export/job ID of its own. The correlation is not verified remotely, and no export job is started to obtain it.
 
-Add `-validate` to validate policy, mapping options, and destination separation without loading SDK credentials, issuing requests, or creating directories. Local validation does not check remote permissions. Retrieval uses the policy's existing timeout/retry/backoff settings. Native SDK token acquisition still has the limitations documented in [CONFIGURATION.md](CONFIGURATION.md); generated Beta and V2026 clients cache tokens separately, while mappings and backups share the V2026 cache and adapter gate.
+Add `-validate` to validate policy, mapping options, and destination separation without loading SDK credentials, issuing requests, or creating directories. Local validation does not check remote permissions. Retrieval uses the policy's existing timeout/retry/backoff settings. See [authentication limits](CONFIGURATION.md#authentication-limits) before relying on timeout or cancellation during SDK token acquisition.
 
 Successful retrieval writes one JSON publication record to standard output containing directory and provenance, **not mapping values**. Permission, transport, malformed-response, validation, and publication errors return a nonzero exit status. HTTP error bodies are withheld.
 
-## Bundle contract, schema 1
+## Archive files (schema 1)
 
 ```text
 prod-to-sandbox-001/
@@ -34,7 +34,20 @@ prod-to-sandbox-001/
 
 `mappings.json` is the original response array, byte for byte. No substitutions, sorting, normalization, status filtering, or JSONPath interpretation occur during retrieval. Enabled and disabled records, original JSONPath, source/target strings, mapping IDs, timestamps, unknown fields, array order, and numeric precision in unknown fields survive.
 
-Storage validation rejects duplicate JSON keys, invalid UTF-8/trailing JSON, non-array responses, non-object records, duplicate mapping IDs, missing/non-string `objectMappingId`, `objectType`, `jsonPath`, `sourceValue`, or `targetValue`, missing/non-boolean `enabled`, and non-string supplied `created`/`modified`. Identity/type/path strings must be nonempty; source and target values can be empty strings. Empty `[]` is a valid retrieval. The pinned SDK may also reject responses that fail its generated schema decoder; raw bytes are preserved from its restored response body after successful decoding.
+The response must be a UTF-8 JSON array of mapping objects. Empty `[]` is valid. Duplicate JSON keys, duplicate mapping IDs and content after the array are rejected.
+
+| Mapping field | JSON type | Required? | Requirement |
+| --- | --- | --- | --- |
+| `objectMappingId` | String | Yes | Nonempty and unique within the response |
+| `objectType` | String | Yes | Nonempty |
+| `jsonPath` | String | Yes | Nonempty; retrieval does not interpret the expression |
+| `sourceValue` | String | Yes | May be empty |
+| `targetValue` | String | Yes | May be empty |
+| `enabled` | Boolean | Yes | Both enabled and disabled records are preserved |
+| `created`, `modified` | String | No | Must be strings when present |
+| Other fields | Any valid JSON | No | Preserved without changing their values |
+
+The pinned SDK also checks its response schema and can reject a response before these storage checks run. A successful response is saved with its original bytes.
 
 `provenance.json` contains:
 
@@ -52,32 +65,53 @@ Storage validation rejects duplicate JSON keys, invalid UTF-8/trailing JSON, non
 | `count` | Total records, including disabled mappings |
 | `sha256` | SHA-256 of exact `mappings.json` bytes |
 
-These are retrieval provenance and byte integrity, not authenticity or a transaction with a configuration export. Mappings and an independently produced snapshot may represent different times. The mapping bundle is not an exporter object snapshot and has no snapshot `manifest.json`.
+Provenance records where and when the archive was retrieved; its checksum lets you detect changed bytes. It does not authenticate the source or prove the archive and an export were captured together. Mappings and an independently produced snapshot may represent different times. The mapping bundle is not an exporter object snapshot and has no snapshot `manifest.json`.
 
-Publication validates the bytes/provenance before writing. A private staging directory is written and synced, then renamed into place as a complete bundle. Files use 0600 and directories 0700. An output lock serializes cooperating publishers for the same directory. Parent storage must be trusted/private and support local POSIX directory sync and atomic rename, as with configuration snapshot publication. It must not be changed by unrelated writers during publication. Pre-publication failures preserve existing outputs and clean up staging; a crash can leave a staging directory or lock that requires inspection. A failure syncing the parent after rename reports that the bundle is visible but durability is uncertain. No automatic pruning or destructive replacement is provided. Saved mappings can contain sensitive configuration values; retain them outside source control.
+### Storage and recovery
+
+The exporter validates the archive, writes it to a temporary directory, syncs it to storage and renames it into the requested destination. The destination must not already exist. Files use permissions 0600 and directories 0700. Use private local storage with directory sync and atomic rename support; keep saved mapping values outside source control.
+
+A lock prevents cooperating retrievals from writing the same archive at once. Failures before the final rename remove temporary staging after ordinary error returns; a crash can leave a temporary directory or lock. Check that no retrieval is active before removing a stale lock. A directory-sync error after the final rename means the complete archive is visible, but its survival after a crash is uncertain. Verify the files and checksum before deciding whether another retrieval is needed.
+
+Archives are not overwritten, refreshed in place or pruned automatically. Use a new directory for each retrieval.
 
 ## Library
 
-```go
-// c is the ordinary exporter policy; api uses sdk.New or sdk.NewWithConfiguration.
-ctx, cancel := context.WithTimeout(ctx, timeout)
-defer cancel()
-saved, err := exporter.RetrieveMappings(ctx, api, exporter.MappingRequest{
-    SourceOrg: "invented-prod", TargetTenant: c.Tenant,
-})
-if err != nil { return err }
-publication, err := (exporter.MappingFileStore{
-    Directory: "./mapping-archives/prod-to-sandbox-001", ExportRoot: c.Output,
-}).Publish(ctx, saved)
-```
+The following function uses an existing exporter policy and an SDK adapter (or another implementation of `MappingAPI`). It returns the saved archive location and provenance, or an error:
 
-The example assumes an existing context, exporter policy, SDK adapter and timeout, and returns errors to its caller. Check the publication error before using its result.
+```go
+package example
+
+import (
+    "context"
+
+    exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+)
+
+func saveMappings(ctx context.Context, c exporter.Config, api exporter.MappingAPI) (exporter.MappingPublication, error) {
+    timeout, err := exporter.Duration(c.Timeout)
+    if err != nil {
+        return exporter.MappingPublication{}, err
+    }
+    ctx, cancel := context.WithTimeout(ctx, timeout)
+    defer cancel()
+    saved, err := exporter.RetrieveMappings(ctx, api, exporter.MappingRequest{
+        SourceOrg: "invented-prod", TargetTenant: c.Tenant,
+    })
+    if err != nil {
+        return exporter.MappingPublication{}, err
+    }
+    return (exporter.MappingFileStore{
+        Directory: "./mapping-archives/prod-to-sandbox-001", ExportRoot: c.Output,
+    }).Publish(ctx, saved)
+}
+```
 
 `MappingAPI` is a separate interface for optional mapping retrieval. `RetrieveMappings` performs no filesystem operations. `MappingFileStore.Publish` revalidates the checksum/count/provenance and copies input bytes before writing. `ExportRoot` enforces output separation when supplied; the CLI always supplies it. Direct library callers must identify the export root or independently choose separate storage. The root library and `snapshot` package remain SDK-free; generated models stay inside `sdk`.
 
 ## Offline differ handoff
 
-For tenant-specific source mappings, import the saved array with the differ:
+Configdiffer is a separate, currently unpublished project. Its source checkout contains the *Export input contract* and *Comparison policy v2* documents. Once you have built its CLI, you can import tenant-specific mappings as follows:
 
 ```sh
 isc-configdiffer --mode drift \

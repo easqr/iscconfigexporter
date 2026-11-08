@@ -8,7 +8,7 @@ This guide describes the current integration with SailPoint Go SDK v2.7.106 for 
 
 The loader constructs `sailpoint.ClientConfiguration`, sets the token URL from the base URL, and calls `sailpoint.NewConfiguration`. It does not call `NewDefaultConfiguration` or read deprecated home-directory configuration. `sdk.NewWithConfiguration` accepts explicit SDK configuration for embedded applications. Caller-owned configuration, headers and HTTP client settings are copied before adapter changes.
 
-Authentication and token caching remain SDK responsibilities. One root `NewAPIClient` provides the Beta export and V2026 backup/mapping clients. Generated clients maintain separate per-version token caches. A context-aware gate serializes calls through an adapter because those caches are mutable. There is no exporter token cache or OAuth exchange implementation.
+Authentication and token caching remain SDK responsibilities. One root `NewAPIClient` provides the Beta export and V2026 backup/mapping clients. Generated clients maintain separate per-version token caches. Mapping and backup calls share the V2026 cache. A context-aware gate serializes calls through an adapter because those caches are mutable. There is no exporter token cache or OAuth exchange implementation.
 
 ## Requests and retries
 
