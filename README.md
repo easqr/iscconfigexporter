@@ -43,10 +43,32 @@ Import the root module as `exporter` and its `/sdk` package as `sdk`. `sdk.New` 
 exports/
   example -> .isc-snapshots/example-<generation>
   .isc-snapshots/example-<generation>/
-    ROLE/id-<hex-of-stable-id>.json
-    SOURCE/id-<hex-of-stable-id>.json
+    ROLE/id-<hex-of-self.id>.json
+    SOURCE/id-<hex-of-self.id>.json
     manifest.json
 ```
+
+Object paths are derived from the export envelope's `self.type` and `self.id`:
+`<self.type>/id-<lowercase hexadecimal encoding of the UTF-8 bytes of self.id>.json`.
+The ID is read from `self.id`, rather than the nested `object.id` or `self.name`.
+Each byte becomes two hexadecimal characters, so a 32-character ASCII ID produces
+64 hexadecimal characters in the filename. This is a deterministic, reversible
+encoding, not a generated GUID, a hash, or encryption.
+
+For example, an envelope containing:
+
+```json
+{
+  "version": 1,
+  "self": { "type": "ROLE", "id": "abc123", "name": "Example role" },
+  "object": {}
+}
+```
+
+is written to `ROLE/id-616263313233.json`. Hex encoding preserves the exact ID
+while avoiding special characters, substitution collisions, and case collisions
+on filesystems that treat uppercase and lowercase filenames as equivalent.
+The original `self.id` and `self.name` remain readable inside the JSON file.
 
 Each object retains its complete exported envelope and unknown fields. Only map keys are ordered; array order and numeric precision are retained. Manifest records tenant, operation, completion time, selected types, counts, relative artifact paths, SHA-256 checksums and created/modified/unchanged/deleted paths. Filtered exports replace the current managed snapshot with the selected types. Unmanaged regular files are carried forward; collisions and nested symlinks fail closed.
 
