@@ -23,7 +23,7 @@ Enabled=true with policy=disabled is invalid. A disabled cleanup with a configur
 
 ## Native SDK connection and authentication
 
-The adapter calls `sailpoint.NewDefaultConfiguration()` and `sailpoint.NewAPIClient()` from pinned SDK v2.7.106. It does not read credentials, construct OAuth token URLs, create token sources, exchange tokens or maintain a token cache. Both SP-Config and Configuration Hub use the same root SDK client. Optional programmatic configuration is accepted by sdk.NewWithConfiguration using the SDK's own Configuration type; caller-owned configuration and HTTP clients are copied rather than mutated.
+The adapter loads SDK connection settings from local `config.json` or `SAIL_*` environment variables, then calls `sailpoint.NewConfiguration()` and `sailpoint.NewAPIClient()` from pinned SDK v2.7.106. Authentication, token exchange and caching remain SDK responsibilities. Both SP-Config and Configuration Hub use the same root SDK client. Optional programmatic configuration is accepted by sdk.NewWithConfiguration using the SDK's own Configuration type; caller-owned configuration and HTTP clients are copied rather than mutated.
 
 Use your existing SDK configuration. The normal file is `config.json`, generated if desired with `sail sdk init config`. Its placeholder-only shape is:
 
@@ -35,15 +35,15 @@ Use your existing SDK configuration. The normal file is `config.json`, generated
 }
 ```
 
-This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The SDK also supports SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative; the exporter reads none of these itself.
+This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The adapter also accepts the SDK-compatible SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET environment variables as an optional alternative.
 
-Pinned SDK lookup order, verified in configuration.go:
+Connection lookup order:
 
 1. If SAIL_BASE_URL is set, use the SAIL_* environment configuration as a whole (it does not merge missing credentials from files).
 2. Otherwise search for config.json beside the executable, then in the working directory.
-3. Otherwise try the deprecated active-environment configuration in ~/.sailpoint/config.yaml.
+3. Otherwise return a configuration error. The deprecated `~/.sailpoint/config.yaml` is not read.
 
-Missing/malformed SDK configuration is reported as a sanitized error instead of propagating the SDK's panic text. The deprecated home fallback prints an SDK warning to stdout, so use config.json or SAIL_* when machine-readable CLI stdout is required. The default loader uses SDK-global Viper state; adapter constructors serialize their own default loads, but cannot coordinate other applications' Viper access. Embedded applications sharing Viper should supply explicit native configuration instead. Help and local -validate do not load SDK configuration or access credentials/network.
+Missing or malformed configuration is reported as a sanitized error. Configuration loading uses a private parser and does not share the SDK's global Viper state. Help and local -validate do not load SDK configuration or access credentials/network.
 
 Native SDK limitations verified in v2.7.106: generated clients lazily acquire and cache tokens, without expiry-based refresh; acquisition uses an SDK-created http.Client rather than the configured API client, and does not receive the request context, timeout or redirect policy. Therefore the export timeout bounds API requests and retry waits but cannot interrupt a blocked native token request. API transport injection likewise does not intercept native token acquisition. Token endpoints are validated as HTTPS URLs without query/userinfo, but the SDK's token HTTP redirect behavior is not overridden. The SDK may print token transport errors to stdout. Recreate an adapter after an expired-token failure; automatic reauthentication is not added by the exporter. Programmatic native Token configuration is also supported. Calls sharing an adapter are serialized to protect generated SDK mutable token caches. These limitations also exist in inspected SDK v3.1.74; no API-version migration was introduced for this change.
 

@@ -6,29 +6,30 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"github.com/hashicorp/go-retryablehttp"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 	beta "github.com/sailpoint-oss/golang-sdk/v2/api_beta"
+	"github.com/spf13/viper"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
-// Adapter delegates configuration, API construction, authentication and HTTP retries
+// Adapter delegates API construction, authentication and HTTP retries
 // to the pinned SailPoint SDK. Its gate protects the SDK's mutable token caches.
 type Adapter struct {
 	client *sailpoint.APIClient
 	gate   chan struct{}
 }
 
-var defaultConfigMu sync.Mutex // The SDK default loader uses global Viper state.
-
-// New uses the SDK's native default configuration lookup. No authentication or
-// network request occurs during construction. transport is an optional API transport.
+// New loads SDK settings from SAIL_* or local config.json, without a home-directory
+// fallback. No authentication or network request occurs during construction.
+// transport is an optional API transport.
 func New(c exporter.Config, transport http.RoundTripper) (*Adapter, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -103,18 +104,39 @@ func NewWithConfiguration(c exporter.Config, cfg *sailpoint.Configuration, trans
 	copyCfg.HTTPClient = r
 	return &Adapter{client: sailpoint.NewAPIClient(&copyCfg), gate: make(chan struct{}, 1)}, nil
 }
-func defaultConfiguration() (cfg *sailpoint.Configuration, err error) {
-	defaultConfigMu.Lock()
-	defer defaultConfigMu.Unlock()
-	// SDK discovery panics on missing/malformed configuration. Do not expose its
-	// panic text, which may contain configuration contents.
-	defer func() {
-		if recover() != nil {
-			cfg = nil
-			err = errors.New("SailPoint SDK configuration could not be loaded; configure the SDK using config.json or SAIL_* settings")
+func defaultConfiguration() (*sailpoint.Configuration, error) {
+	var conn sailpoint.ClientConfiguration
+	if base := os.Getenv("SAIL_BASE_URL"); base != "" {
+		conn = sailpoint.ClientConfiguration{
+			BaseURL:      base,
+			ClientId:     os.Getenv("SAIL_CLIENT_ID"),
+			ClientSecret: os.Getenv("SAIL_CLIENT_SECRET"),
+			NermBaseURL:  os.Getenv("SAIL_NERM_BASE_URL"),
 		}
-	}()
-	return sailpoint.NewDefaultConfiguration(), nil
+	} else {
+		executable, err := os.Executable()
+		if err != nil {
+			return nil, configurationLoadError()
+		}
+		// A private Viper instance preserves the SDK's local file format without
+		// consulting its deprecated home configuration or shared global state.
+		v := viper.New()
+		v.AddConfigPath(filepath.Dir(executable))
+		v.AddConfigPath(".")
+		v.SetConfigName("config")
+		v.SetConfigType("json")
+		if err := v.ReadInConfig(); err != nil {
+			return nil, configurationLoadError()
+		}
+		if err := v.Unmarshal(&conn); err != nil {
+			return nil, configurationLoadError()
+		}
+	}
+	conn.TokenURL = strings.TrimRight(conn.BaseURL, "/") + "/oauth/token"
+	return sailpoint.NewConfiguration(conn), nil
+}
+func configurationLoadError() error {
+	return errors.New("SailPoint SDK configuration could not be loaded; configure the SDK using config.json or SAIL_* settings")
 }
 func httpsOrigin(s string) bool {
 	u, e := url.Parse(s)

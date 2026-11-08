@@ -1,6 +1,6 @@
 # Dependency and license review
 
-Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106, the latest stable v2 release. The newer v3 major was inspected at v3.1.74 during the native-authentication review; its token-helper limitations are the same, and migration would also change API endpoints, so this change keeps the verified v2 API contract. Native configuration now imports the root SDK and its Viper stack. Runtime modules below were identified with `go list -deps` for ./cmd/isc-exporter. Reviewed local module license files; complete notices are retained in docs/licenses. Viper is used directly only in tests to isolate the SDK's global state; production configuration loading is delegated to the SDK.
+Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106, the latest stable v2 release. The newer v3 major was inspected at v3.1.74 during the native-authentication review; its token-helper limitations are the same, and migration would also change API endpoints, so this change keeps the verified v2 API contract. Native configuration now imports the root SDK and its Viper stack. Runtime modules below were identified with `go list -deps` for ./cmd/isc-exporter. Reviewed local module license files; complete notices are retained in docs/licenses. Viper is used directly through a private instance to load local SDK-format config.json without the SDK's deprecated home-directory fallback or global parser state.
 
 | Runtime module | Version | License |
 |---|---|---|

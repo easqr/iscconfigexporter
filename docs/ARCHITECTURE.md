@@ -27,7 +27,7 @@ The SDK-backed lifecycle is intentionally non-destructive because reliable SP-Co
 
 ## Native SDK reuse
 
-Configuration discovery and authentication are delegated to the root SailPoint SDK. One root client supplies Beta and V2026 services; the exporter no longer creates parallel per-version configurations or OAuth token sources. The SDK's retryable HTTP client supplies bounded read retries, backoff and Retry-After handling. Engine handles business-level job polling, not HTTP retries. Adapter gating prevents concurrent mutation of SDK token caches; context cancellation can interrupt gate waits/API requests, but cannot interrupt the SDK's separate native token acquisition. The full review, retained exporter responsibilities and upstream constraints are recorded in SDK_REUSE_AUDIT.md and CONFIGURATION.md.
+Connection settings are loaded from local config.json or SAIL_* without the deprecated home-directory fallback; authentication is delegated to the root SailPoint SDK. One root client supplies Beta and V2026 services; the exporter no longer creates parallel per-version configurations or OAuth token sources. The SDK's retryable HTTP client supplies bounded read retries, backoff and Retry-After handling. Engine handles business-level job polling, not HTTP retries. Adapter gating prevents concurrent mutation of SDK token caches; context cancellation can interrupt gate waits/API requests, but cannot interrupt the SDK's separate native token acquisition. The full review, retained exporter responsibilities and upstream constraints are recorded in SDK_REUSE_AUDIT.md and CONFIGURATION.md.
 
 ## Independent mapping retrieval
 

@@ -1,5 +1,7 @@
 # SDK reuse audit
 
+This audit records the original native-SDK integration review. The subsequent removal of deprecated home-directory configuration supersedes its default-loader descriptions: the adapter now loads only local `config.json` or `SAIL_*`, using a private Viper instance, and passes those settings to `sailpoint.NewConfiguration`. It no longer calls `NewDefaultConfiguration`, uses a global configuration lock, or handles SDK discovery panics. Authentication and token caching remain native SDK behavior.
+
 Scope: all production Go files (root package, sdk and cmd), configuration examples, direct dependencies and documented operational behavior. Compared with pinned SailPoint Go SDK v2.7.106 configuration.go, client.go, paginator.go, api_beta/api_sp_config.go, generated export models and api_v2026/api_configuration_hub.go. Also inspected v3.1.74 configuration.go and SP-Config client authentication to check whether a major upgrade would remove native-auth limitations. No live API calls were made.
 
 ## Removed duplication

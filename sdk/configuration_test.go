@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"github.com/hashicorp/go-retryablehttp"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
-	"github.com/spf13/viper"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -25,8 +25,6 @@ func configForTest() exporter.Config {
 }
 func isolateConfig(t *testing.T) {
 	t.Helper()
-	viper.Reset()
-	t.Cleanup(viper.Reset)
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	for _, k := range []string{"SAIL_BASE_URL", "SAIL_CLIENT_ID", "SAIL_CLIENT_SECRET", "SAIL_NERM_BASE_URL"} {
@@ -34,7 +32,7 @@ func isolateConfig(t *testing.T) {
 	}
 }
 func TestNativeConfigurationLookup(t *testing.T) {
-	for _, source := range []string{"file", "environment", "environment precedence", "missing", "malformed", "legacy ignored", "incomplete environment"} {
+	for _, source := range []string{"file", "environment", "environment precedence", "missing", "malformed", "legacy ignored", "incomplete environment", "deprecated home ignored"} {
 		t.Run(source, func(t *testing.T) {
 			isolateConfig(t)
 			if source == "file" || source == "environment precedence" {
@@ -59,8 +57,18 @@ func TestNativeConfigurationLookup(t *testing.T) {
 			if source == "incomplete environment" {
 				t.Setenv("SAIL_BASE_URL", "https://example.api.identitynow.com")
 			}
+			if source == "deprecated home ignored" {
+				directory := filepath.Join(os.Getenv("HOME"), ".sailpoint")
+				if e := os.MkdirAll(directory, 0700); e != nil {
+					t.Fatal(e)
+				}
+				legacy := "activeenvironment: example\nenvironments:\n  example:\n    baseurl: https://legacy.api.identitynow.com\n    pat:\n      clientid: legacy-id\n      clientsecret: sensitive-placeholder\n"
+				if e := os.WriteFile(filepath.Join(directory, "config.yaml"), []byte(legacy), 0600); e != nil {
+					t.Fatal(e)
+				}
+			}
 			a, e := New(configForTest(), nil)
-			if source == "missing" || source == "malformed" || source == "legacy ignored" || source == "incomplete environment" {
+			if source == "missing" || source == "malformed" || source == "legacy ignored" || source == "incomplete environment" || source == "deprecated home ignored" {
 				if e == nil || strings.Contains(e.Error(), "sensitive-placeholder") {
 					t.Fatal("missing or unsafe error", e)
 				}
