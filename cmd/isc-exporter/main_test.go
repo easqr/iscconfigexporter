@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,5 +53,90 @@ func TestLocalValidationDoesNotReadSDKConfig(t *testing.T) {
 	}
 	if out.String() != "configuration valid\n" || stderr.Len() != 0 {
 		t.Fatal(out.String(), stderr.String())
+	}
+}
+
+func TestCLIHelpAndOptionErrors(t *testing.T) {
+	factory := func(exporter.Config) (*sdk.Adapter, error) {
+		t.Fatal("help or invalid options loaded SDK settings")
+		return nil, nil
+	}
+	for _, option := range []string{"-help", "-h"} {
+		var out, errOut bytes.Buffer
+		if err := runWithAdapter(context.Background(), []string{option}, &out, &errOut, factory); err != nil {
+			t.Fatal(err)
+		}
+		for _, text := range []string{"Usage:", "Examples:", "separate config.json", "still writes an export", "cannot delete backups", "does not verify API access", "-mapping-output", "not verified"} {
+			if !strings.Contains(errOut.String(), text) {
+				t.Errorf("%s help missing %q", option, text)
+			}
+		}
+		if out.Len() != 0 {
+			t.Fatal("help wrote to JSON output")
+		}
+	}
+	for _, args := range [][]string{{"-unknown"}, {"-config"}, {"-validate=invalid"}, {"extra"}} {
+		var out, errOut bytes.Buffer
+		err := runWithAdapter(context.Background(), args, &out, &errOut, factory)
+		if err == nil || !strings.Contains(err.Error(), "-help") {
+			t.Fatalf("missing usage guidance for %v: %v", args, err)
+		}
+		if out.Len() != 0 || errOut.Len() != 0 {
+			t.Fatal("option parsing printed a duplicate error or usage dump")
+		}
+	}
+}
+
+func TestCLIPolicyAndMappingErrors(t *testing.T) {
+	root := t.TempDir()
+	policy := filepath.Join(root, "exporter.json")
+	factory := func(exporter.Config) (*sdk.Adapter, error) {
+		t.Fatal("invalid settings reached SDK configuration")
+		return nil, nil
+	}
+	for _, tc := range []struct {
+		name, policy, want string
+		options            []string
+	}{
+		{"duration", `{"tenant":"example","poll_interval":"0s"}`, "poll_interval must be a positive duration", nil},
+		{"log level", `{"tenant":"example","log_level":"verbose"}`, "log_level must be", nil},
+		{"backup policy", `{"tenant":"example","backup":{"enabled":true}}`, "backup.policy", nil},
+		{"wrong type", `{"tenant":"example","retries":"sensitive-placeholder"}`, `field "retries" has the wrong JSON type`, nil},
+		{"unknown field", `{"tenant":"example","ClientSecret":"sensitive-placeholder"}`, "supported fields", nil},
+		{"incomplete JSON", `{"tenant":"sensitive-placeholder"`, "JSON is incomplete", nil},
+		{"empty file", ``, "policy is empty", nil},
+		{"source required", `{"tenant":"example"}`, "requires -mapping-source-org", []string{"-retrieve-mappings"}},
+		{"destination required", `{"tenant":"example"}`, "requires -mapping-output", []string{"-retrieve-mappings", "-mapping-source-org", "default"}},
+		{"conflicting actions", `{"tenant":"example"}`, "cannot be used together", []string{"-retrieve-mappings", "-cleanup-preview"}},
+		{"mapping action required", `{"tenant":"example"}`, "require -retrieve-mappings", []string{"-mapping-export-job", "job"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.WriteFile(policy, []byte(tc.policy), 0600); err != nil {
+				t.Fatal(err)
+			}
+			args := append([]string{"-config", policy, "-validate"}, tc.options...)
+			var out, errOut bytes.Buffer
+			err := runWithAdapter(context.Background(), args, &out, &errOut, factory)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("wanted %q, got %v", tc.want, err)
+			}
+			if strings.Contains(err.Error(), "sensitive-placeholder") || out.Len() != 0 || errOut.Len() != 0 {
+				t.Fatal("unsafe or duplicate error output")
+			}
+		})
+	}
+}
+
+func TestCLIWrappedCancellationMessages(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{fmt.Errorf("cannot download: %w", context.Canceled), "operation canceled"},
+		{fmt.Errorf("cannot check progress: %w", context.DeadlineExceeded), "operation timed out"},
+	} {
+		if got := cliErrorMessage(tc.err); !strings.HasPrefix(got, tc.want) {
+			t.Fatalf("unexpected error message: %s", got)
+		}
 	}
 }

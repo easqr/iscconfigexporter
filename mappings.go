@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -32,10 +33,10 @@ type MappingRequest struct {
 
 func (r MappingRequest) Validate() error {
 	if !portable(r.SourceOrg) || !portable(r.TargetTenant) {
-		return errors.New("valid mapping source organization and target tenant are required")
+		return errors.New("mapping source organization and target tenant must be valid tenant identifiers; see docs/MAPPINGS.md")
 	}
 	if len(r.ExportJobID) > 256 || strings.IndexFunc(r.ExportJobID, unicode.IsControl) >= 0 {
-		return errors.New("invalid mapping export job correlation")
+		return errors.New("the recorded export job ID must be at most 256 characters with no control characters")
 	}
 	return nil
 }
@@ -73,7 +74,7 @@ func mappingOrigin(origin string) bool {
 func ValidateMappings(data []byte) (int, error) {
 	v, e := snapfmt.DecodeJSON(data)
 	if e != nil {
-		return 0, errors.New("invalid mapping JSON")
+		return 0, errors.New("mapping data contains invalid JSON or duplicate JSON keys")
 	}
 	items, ok := v.([]any)
 	if !ok {
@@ -83,26 +84,26 @@ func ValidateMappings(data []byte) (int, error) {
 	for _, v := range items {
 		m, ok := v.(map[string]any)
 		if !ok {
-			return 0, errors.New("invalid mapping record")
+			return 0, errors.New("each mapping record must be a JSON object")
 		}
 		for _, key := range []string{"objectMappingId", "objectType", "jsonPath", "sourceValue", "targetValue"} {
 			s, ok := m[key].(string)
 			if !ok || ((key == "objectMappingId" || key == "objectType" || key == "jsonPath") && s == "") {
-				return 0, errors.New("missing or invalid mapping string field")
+				return 0, fmt.Errorf("mapping field %q must be a string (and nonempty for identity, type and path fields)", key)
 			}
 		}
 		if _, ok := m["enabled"].(bool); !ok {
-			return 0, errors.New("mapping enabled status is required")
+			return 0, errors.New("each mapping record must include a boolean enabled field")
 		}
 		id := m["objectMappingId"].(string)
 		if seen[id] {
-			return 0, errors.New("duplicate mapping identity")
+			return 0, errors.New("mapping data contains duplicate objectMappingId values")
 		}
 		seen[id] = true
 		for _, key := range []string{"created", "modified"} {
 			if value, ok := m[key]; ok {
 				if _, ok := value.(string); !ok {
-					return 0, errors.New("invalid mapping timestamp field")
+					return 0, fmt.Errorf("mapping field %q must be a string when present", key)
 				}
 			}
 		}

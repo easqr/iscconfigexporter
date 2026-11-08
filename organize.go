@@ -21,27 +21,27 @@ func Organize(tenant string, d Download, completed time.Time) (snapfmt.Snapshot,
 	}
 	v, e := snapfmt.DecodeJSON(d.Raw)
 	if e != nil {
-		return out, errors.New("invalid export JSON (including duplicate keys)")
+		return out, errors.New("downloaded export contains invalid JSON or duplicate JSON keys")
 	}
 	root, ok := v.(map[string]any)
 	if !ok {
 		return out, errors.New("export must be an object")
 	}
 	if root["tenant"] != tenant {
-		return out, errors.New("download tenant mismatch")
+		return out, errors.New("downloaded export does not match the policy tenant; check tenant and the SDK connection URL")
 	}
 	items, ok := root["objects"].([]any)
 	if !ok {
-		return out, errors.New("export objects must be an array")
+		return out, errors.New("downloaded export is missing a valid objects array")
 	}
 	selected := map[string]bool{}
 	typePaths := map[string]bool{}
 	for _, s := range d.Types {
 		if !portable(s) {
-			return out, errors.New("unsafe selected type")
+			return out, errors.New("selected export type cannot be used as a safe directory name")
 		}
 		if typePaths[strings.ToLower(s)] {
-			return out, errors.New("colliding selected types")
+			return out, errors.New("selected type names differ only by letter case and would share a directory")
 		}
 		typePaths[strings.ToLower(s)] = true
 		selected[s] = true
@@ -55,27 +55,27 @@ func Organize(tenant string, d Download, completed time.Time) (snapfmt.Snapshot,
 	for _, v := range items {
 		obj, ok := v.(map[string]any)
 		if !ok {
-			return snapfmt.Snapshot{}, errors.New("object envelope is not an object")
+			return snapfmt.Snapshot{}, errors.New("an exported configuration record must be a JSON object")
 		}
 		self, ok := obj["self"].(map[string]any)
 		if !ok {
-			return snapfmt.Snapshot{}, errors.New("missing self metadata")
+			return snapfmt.Snapshot{}, errors.New("an exported record is missing its self metadata")
 		}
 		typ, _ := self["type"].(string)
 		id, _ := self["id"].(string)
 		ver, ok := obj["version"].(json.Number)
 		if !ok {
-			return snapfmt.Snapshot{}, errors.New("missing object version")
+			return snapfmt.Snapshot{}, errors.New("an exported record is missing its numeric version")
 		}
 		n, e := ver.Int64()
 		if e != nil || n < 1 {
-			return snapfmt.Snapshot{}, errors.New("invalid object version")
+			return snapfmt.Snapshot{}, errors.New("an exported record must have a positive integer version")
 		}
 		if _, ok := obj["object"].(map[string]any); !ok {
-			return snapfmt.Snapshot{}, errors.New("missing object payload")
+			return snapfmt.Snapshot{}, errors.New("an exported record is missing its object payload")
 		}
 		if !selected[typ] {
-			return snapfmt.Snapshot{}, errors.New("download contains unselected object type")
+			return snapfmt.Snapshot{}, errors.New("downloaded export contains a type outside the requested selection")
 		}
 		p, e := snapfmt.ObjectPath(typ, id)
 		if e != nil {
@@ -83,7 +83,7 @@ func Organize(tenant string, d Download, completed time.Time) (snapfmt.Snapshot,
 		}
 		key := strings.ToLower(p)
 		if seen[key] {
-			return snapfmt.Snapshot{}, fmt.Errorf("duplicate or colliding object identity")
+			return snapfmt.Snapshot{}, fmt.Errorf("exported records have duplicate identities or would write to the same file")
 		}
 		seen[key] = true
 		b, e := json.MarshalIndent(obj, "", "  ")

@@ -53,12 +53,17 @@ func NewWithConfiguration(c exporter.Config, cfg *sailpoint.Configuration, trans
 	copyCfg := *cfg
 	conn := cfg.ClientConfiguration
 	if !httpsOrigin(conn.BaseURL) {
-		return nil, errors.New("SDK BaseURL must be an HTTPS origin")
+		return nil, errors.New("SDK BaseURL must be an HTTPS URL containing only a host and optional port; check config.json or SAIL_BASE_URL")
 	}
 	// Normalize a harmless trailing slash, without constructing an OAuth endpoint.
 	conn.BaseURL = strings.TrimRight(conn.BaseURL, "/")
-	if conn.Token == "" && (conn.ClientId == "" || conn.ClientSecret == "" || !httpsEndpoint(conn.TokenURL)) {
-		return nil, errors.New("SDK configuration requires a token or client credentials and an HTTPS TokenURL")
+	if conn.Token == "" {
+		if conn.ClientId == "" || conn.ClientSecret == "" {
+			return nil, errors.New("SDK ClientId and ClientSecret are required when no Token is supplied; check config.json or SAIL_CLIENT_ID and SAIL_CLIENT_SECRET")
+		}
+		if !httpsEndpoint(conn.TokenURL) {
+			return nil, errors.New("SDK TokenURL must use HTTPS without user information, a query string or a fragment")
+		}
 	}
 	copyCfg.ClientConfiguration = conn
 	copyCfg.Debug = false
@@ -143,7 +148,7 @@ func defaultConfiguration() (*sailpoint.Configuration, error) {
 	return sailpoint.NewConfiguration(conn), nil
 }
 func configurationLoadError() error {
-	return errors.New("SailPoint SDK configuration could not be loaded; configure the SDK using config.json or SAIL_* settings")
+	return errors.New("cannot load SDK connection settings; provide valid config.json beside the executable or in the working directory, or set SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET")
 }
 func httpsOrigin(s string) bool {
 	u, e := url.Parse(s)
@@ -169,7 +174,22 @@ func (a *Adapter) release() { <-a.gate }
 type apiError struct{ code int }
 
 func (e apiError) Error() string {
-	return fmt.Sprintf("ISC API request failed (HTTP %d); response details withheld", e.code)
+	guidance := "check the tenant connection settings and try again if appropriate"
+	switch e.code {
+	case http.StatusUnauthorized:
+		guidance = "check the SDK credentials or supplied token"
+	case http.StatusForbidden:
+		guidance = "check the tenant role and API permissions for this operation"
+	case http.StatusNotFound:
+		guidance = "check the tenant API URL and whether the requested resource still exists"
+	case http.StatusTooManyRequests:
+		guidance = "the tenant request limit was reached; wait before retrying"
+	default:
+		if e.code >= 500 {
+			guidance = "ISC reported a server error; check service availability before retrying"
+		}
+	}
+	return fmt.Sprintf("ISC request failed (HTTP %d); %s", e.code, guidance)
 }
 func safe(ctx context.Context, r *http.Response, err error) error {
 	if ctx.Err() != nil {
@@ -179,10 +199,10 @@ func safe(ctx context.Context, r *http.Response, err error) error {
 		if r != nil {
 			return apiError{r.StatusCode}
 		}
-		return errors.New("ISC transport or authentication failed; details withheld")
+		return errors.New("cannot connect to ISC or authenticate; check the SDK connection URL, credentials and network access")
 	}
 	if r == nil {
-		return errors.New("missing ISC response")
+		return errors.New("ISC returned no response; check the connection and network access")
 	}
 	return nil
 }
@@ -220,7 +240,7 @@ func (a *Adapter) Start(ctx context.Context, types []string) (string, error) {
 		return "", e
 	}
 	if v == nil {
-		return "", errors.New("empty export response")
+		return "", errors.New("ISC did not return export job details; inspect tenant export jobs before starting another export")
 	}
 	return v.JobId, nil
 }
@@ -234,8 +254,11 @@ func (a *Adapter) Status(ctx context.Context, id string) (string, error) {
 	if e = safe(ctx, r, e); e != nil {
 		return "", e
 	}
-	if v == nil || v.JobId != id {
-		return "", errors.New("export status identity mismatch")
+	if v == nil {
+		return "", errors.New("ISC returned no export status; inspect tenant export jobs before retrying")
+	}
+	if v.JobId != id {
+		return "", errors.New("ISC returned status for a different export job; inspect tenant export jobs before retrying")
 	}
 	return v.Status, nil
 }
@@ -251,7 +274,7 @@ func (a *Adapter) Download(ctx context.Context, id string) (json.RawMessage, err
 	}
 	b, e := io.ReadAll(r.Body)
 	if e != nil {
-		return nil, errors.New("cannot read export response")
+		return nil, errors.New("cannot read the downloaded export; check the connection and retry the export if needed")
 	}
 	return b, nil
 }

@@ -24,7 +24,7 @@ type MappingPublication struct {
 // or retrieval. ExportRoot and the bundle must have disjoint directory trees.
 func ValidateMappingDestination(directory, exportRoot string) error {
 	if directory == "" {
-		return errors.New("mapping output directory is required")
+		return errors.New("a mapping output directory is required")
 	}
 	dest, e := canonicalDestination(directory)
 	if e != nil {
@@ -36,11 +36,11 @@ func ValidateMappingDestination(directory, exportRoot string) error {
 			return e
 		}
 		if beneath(dest, root) || beneath(root, dest) {
-			return errors.New("mapping output must be separate from the configuration export tree")
+			return errors.New("mapping output must be outside the export directory and must not contain it; choose a separate directory")
 		}
 	}
 	if _, e := os.Lstat(directory); !errors.Is(e, os.ErrNotExist) {
-		return errors.New("mapping output directory must not already exist")
+		return errors.New("the mapping output path already exists or cannot be inspected; choose a new accessible directory")
 	}
 	return nil
 }
@@ -60,7 +60,7 @@ func canonicalDestination(p string) (string, error) {
 		if e == nil {
 			resolved, e := filepath.EvalSymlinks(ancestor)
 			if e != nil {
-				return "", errors.New("cannot resolve mapping output ancestry")
+				return "", errors.New("cannot resolve the mapping output path; check parent directories and symbolic links")
 			}
 			for i := len(tail) - 1; i >= 0; i-- {
 				resolved = filepath.Join(resolved, tail[i])
@@ -68,11 +68,11 @@ func canonicalDestination(p string) (string, error) {
 			return resolved, nil
 		}
 		if !errors.Is(e, os.ErrNotExist) {
-			return "", errors.New("cannot inspect mapping output ancestry")
+			return "", errors.New("cannot inspect parent directories for mapping output; check path permissions")
 		}
 		parent := filepath.Dir(ancestor)
 		if parent == ancestor {
-			return "", errors.New("cannot resolve mapping output ancestry")
+			return "", errors.New("cannot resolve the mapping output path; check parent directories and symbolic links")
 		}
 		tail = append(tail, filepath.Base(ancestor))
 		ancestor = parent
@@ -96,24 +96,24 @@ func (s MappingFileStore) Publish(ctx context.Context, snap MappingSnapshot) (Ma
 	}
 	parent, name := filepath.Dir(dest), filepath.Base(dest)
 	if e = os.MkdirAll(parent, 0700); e != nil {
-		return out, errors.New("cannot create mapping output parent")
+		return out, errors.New("cannot create parent directories for mapping output; check permissions and available disk space")
 	}
 	r, e := os.OpenRoot(parent)
 	if e != nil {
-		return out, errors.New("cannot open mapping output parent")
+		return out, errors.New("cannot open the parent directory for mapping output; check permissions")
 	}
 	defer r.Close()
 	lock := ".isc-mapping-lock-" + snapfmt.Checksum([]byte(name))[:24]
 	if e = r.Mkdir(lock, 0700); e != nil {
-		return out, errors.New("cannot acquire mapping output lock; inspect any stale lock")
+		return out, errors.New("cannot lock the mapping output; another retrieval may be running (see docs/MAPPINGS.md before removing a stale lock)")
 	}
 	defer r.Remove(lock)
 	if _, e = r.Lstat(name); !errors.Is(e, os.ErrNotExist) {
-		return out, errors.New("mapping output directory must not already exist")
+		return out, errors.New("the mapping output path already exists or cannot be inspected; choose a new accessible directory")
 	}
 	stage := ".isc-mappings-stage-" + token()
 	if e = r.Mkdir(stage, 0700); e != nil {
-		return out, errors.New("cannot stage mapping bundle")
+		return out, errors.New("cannot create a temporary mapping archive; check permissions and available disk space")
 	}
 	published := false
 	defer func() {
@@ -127,24 +127,24 @@ func (s MappingFileStore) Publish(ctx context.Context, snap MappingSnapshot) (Ma
 	}
 	metadata = append(metadata, '\n')
 	if e = writeSync(r, stage+"/mappings.json", snap.Mappings); e != nil {
-		return out, errors.New("cannot write mappings")
+		return out, errors.New("cannot write mappings.json; check permissions and available disk space")
 	}
 	if e = writeSync(r, stage+"/provenance.json", metadata); e != nil {
-		return out, errors.New("cannot write mapping provenance")
+		return out, errors.New("cannot write provenance.json; check permissions and available disk space")
 	}
 	if e = syncDir(r, stage); e != nil {
-		return out, errors.New("cannot sync mapping bundle")
+		return out, errors.New("cannot sync the mapping archive to storage; check available disk space and filesystem support")
 	}
 	if e = ctx.Err(); e != nil {
 		return out, e
 	}
 	if e = r.Rename(stage, name); e != nil {
-		return out, errors.New("cannot publish mapping bundle")
+		return out, errors.New("cannot move the completed mapping archive into place; check the destination and permissions")
 	}
 	published = true
 	out = MappingPublication{Directory: dest, Provenance: snap.Provenance}
 	if e = syncDir(r, "."); e != nil {
-		return out, errors.New("mapping bundle visible but directory durability uncertain")
+		return out, errors.New("the mapping archive is visible, but syncing its parent directory failed; verify the archive before retrying")
 	}
 	return out, nil
 }

@@ -40,11 +40,25 @@ func LoadConfig(r io.Reader) (Config, error) {
 	d := json.NewDecoder(r)
 	d.DisallowUnknownFields()
 	if err := d.Decode(&c); err != nil {
-		return c, errors.New("invalid configuration JSON")
+		if errors.Is(err, io.EOF) {
+			return c, errors.New("exporter policy is empty; start with exporter.example.json")
+		}
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return c, errors.New("exporter policy JSON is incomplete; check closing quotes, brackets and braces")
+		}
+		var fieldType *json.UnmarshalTypeError
+		if errors.As(err, &fieldType) && fieldType.Field != "" {
+			return c, fmt.Errorf("policy field %q has the wrong JSON type; see docs/CONFIGURATION.md", fieldType.Field)
+		}
+		var syntax *json.SyntaxError
+		if errors.As(err, &syntax) {
+			return c, fmt.Errorf("invalid JSON near byte %d; check commas, quotes and brackets", syntax.Offset)
+		}
+		return c, errors.New("expected an exporter policy JSON object with supported fields and field types; see docs/CONFIGURATION.md")
 	}
 	var extra any
 	if d.Decode(&extra) != io.EOF {
-		return c, errors.New("configuration must contain one JSON document")
+		return c, errors.New("exporter policy must contain exactly one JSON document; remove trailing content")
 	}
 	return c, c.Validate()
 }
@@ -64,35 +78,37 @@ func Duration(s string) (time.Duration, error) {
 }
 func (c Config) Validate() error {
 	if !portable(c.Tenant) {
-		return errors.New("tenant must be a portable identifier")
+		return errors.New("tenant must be 1-100 ASCII letters, digits, hyphens or underscores, start with a letter or digit, and not be a reserved device name")
 	}
 
 	if strings.TrimSpace(c.Output) == "" {
-		return errors.New("output is required")
+		return errors.New("output must specify a directory for exported snapshots")
 	}
-	for _, s := range []string{c.Timeout, c.PollInterval, c.Backoff} {
-		d, e := Duration(s)
+	for _, setting := range []struct{ name, value string }{
+		{"timeout", c.Timeout}, {"poll_interval", c.PollInterval}, {"backoff", c.Backoff},
+	} {
+		d, e := Duration(setting.value)
 		if e != nil || d <= 0 {
-			return errors.New("timeouts, polling and backoff must be positive durations")
+			return fmt.Errorf("%s must be a positive duration, such as 30s, 10m or 7d", setting.name)
 		}
 	}
 	if c.Retries < 0 || c.Retries > 10 {
 		return errors.New("retries must be between 0 and 10")
 	}
 	if c.LogLevel != "info" && c.LogLevel != "debug" && c.LogLevel != "warn" && c.LogLevel != "error" {
-		return errors.New("invalid log_level")
+		return errors.New("log_level must be debug, info, warn or error")
 	}
 	seen := map[string]bool{}
 	for _, s := range c.Include {
 		if !validComponent(s) || seen[s] {
-			return errors.New("invalid or duplicate include type")
+			return errors.New("include must contain unique type names using 1-100 ASCII letters, digits, hyphens or underscores, starting with a letter or digit")
 		}
 		seen[s] = true
 	}
 	ex := map[string]bool{}
 	for _, s := range c.Exclude {
 		if !validComponent(s) || seen[s] || ex[s] {
-			return errors.New("invalid, duplicate or contradictory exclude type")
+			return errors.New("exclude must contain unique valid type names and must not overlap include; see docs/CONFIGURATION.md")
 		}
 		ex[s] = true
 	}
@@ -100,19 +116,19 @@ func (c Config) Validate() error {
 	switch b.Policy {
 	case "disabled":
 		if b.Enabled {
-			return errors.New("enabled cleanup requires retention policy")
+			return errors.New("backup.enabled requires backup.policy to be older_than or keep_latest")
 		}
 	case "older_than":
 		d, e := Duration(b.Age)
 		if e != nil || d <= 0 {
-			return errors.New("cleanup age must be positive")
+			return errors.New("backup.age must be a positive duration for older_than, such as 7d")
 		}
 	case "keep_latest":
 		if b.Age != "" {
-			return errors.New("keep_latest cannot specify age")
+			return errors.New("backup.age must be omitted when backup.policy is keep_latest")
 		}
 	default:
-		return fmt.Errorf("invalid retention policy")
+		return errors.New("backup.policy must be disabled, older_than or keep_latest")
 	}
 	return nil
 }

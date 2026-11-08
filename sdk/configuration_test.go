@@ -136,7 +136,7 @@ func TestNativeTokenAndConcurrency(t *testing.T) {
 	}
 }
 func TestSDKReadRetries(t *testing.T) {
-	for _, code := range []int{408, 429, 500, 403} {
+	for _, code := range []int{408, 429, 500, 401, 403, 404} {
 		t.Run(fmt.Sprint(code), func(t *testing.T) {
 			calls := 0
 			c := configForTest()
@@ -156,11 +156,15 @@ func TestSDKReadRetries(t *testing.T) {
 			}
 			_, e = a.Discover(context.Background())
 			want := 3
-			if code == 403 {
+			if code == 401 || code == 403 || code == 404 {
 				want = 1
 			}
 			if e == nil || calls != want || strings.Contains(e.Error(), "sensitive-placeholder") {
 				t.Fatal(calls, want, e)
+			}
+			guidance := map[int]string{401: "credentials", 403: "permissions", 404: "resource", 429: "request limit", 500: "server error"}
+			if text := guidance[code]; text != "" && !strings.Contains(e.Error(), text) {
+				t.Fatalf("missing recovery guidance %q: %v", text, e)
 			}
 		})
 	}

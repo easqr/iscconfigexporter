@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var ErrOwnershipUnavailable = errors.New("SP-Config to Configuration Hub ownership cannot be verified; deletion disabled")
+var ErrOwnershipUnavailable = errors.New("backup deletion is unavailable: the SDK integration cannot verify which Configuration Hub backups belong to this exporter")
 
 // BackupManager is usable with platform-provided verified adapters. The shipped
 // SDK inventory has no destructive implementation or ownership verifier.

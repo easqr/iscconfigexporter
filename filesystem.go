@@ -93,7 +93,7 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 	tenant := snap.Manifest.Tenant
 	lock := ".isc-lock-" + tenant
 	if e = r.Mkdir(lock, 0700); e != nil {
-		return zero, fmt.Errorf("acquire output lock (inspect stale lock after interruption): %w", e)
+		return zero, fmt.Errorf("cannot lock the tenant output; another export may be running (see docs/OPERATIONS.md before removing a stale lock): %w", e)
 	}
 	defer r.Remove(lock)
 	if e = r.MkdirAll(".isc-snapshots", 0700); e != nil {
@@ -101,14 +101,14 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 	}
 	info, e := r.Lstat(".isc-snapshots")
 	if e != nil || !info.IsDir() {
-		return zero, errors.New("snapshot root must be a real directory")
+		return zero, errors.New(".isc-snapshots must be a directory, not a symbolic link or file")
 	}
 	old := ""
 	prior := snapfmt.Manifest{}
 	oldFiles := map[string]snapfmt.Artifact{}
 	if info, e := r.Lstat(tenant); e == nil {
 		if info.Mode()&os.ModeSymlink == 0 {
-			return zero, errors.New("tenant output exists and is not an exporter pointer")
+			return zero, errors.New("the tenant output path already exists as a directory or file; choose a fresh output directory or preserve and move the existing path")
 		}
 		old, e = r.Readlink(tenant)
 		if e != nil {
@@ -117,29 +117,29 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 		prefix := ".isc-snapshots/" + tenant + "-"
 		suffix := strings.TrimPrefix(old, prefix)
 		if !strings.HasPrefix(old, prefix) || len(suffix) != 32 || strings.Contains(suffix, "/") {
-			return zero, errors.New("untrusted snapshot pointer")
+			return zero, errors.New("the tenant symbolic link does not point to a valid exporter generation; inspect the output directory before retrying")
 		}
 		if _, e = hex.DecodeString(suffix); e != nil {
 			return zero, e
 		}
 		oldInfo, oldErr := r.Lstat(old)
 		if oldErr != nil || !oldInfo.IsDir() {
-			return zero, errors.New("generation must be a real directory")
+			return zero, errors.New("the previous snapshot generation is missing or is not a directory; inspect the tenant symbolic link")
 		}
 		data, e := r.ReadFile(old + "/manifest.json")
 		if e != nil {
 			return zero, e
 		}
 		if e = json.Unmarshal(data, &prior); e != nil || prior.Tenant != tenant || prior.Schema != 1 {
-			return zero, errors.New("invalid previous manifest")
+			return zero, errors.New("the previous snapshot manifest is invalid or belongs to another tenant; inspect it or choose a fresh output directory")
 		}
 		for _, a := range prior.Artifacts {
 			if !snapfmt.ManagedPath(a.Path) || oldFiles[a.Path].Path != "" {
-				return zero, errors.New("invalid previous artifact path")
+				return zero, errors.New("the previous manifest contains an unsafe or duplicate file path; inspect it or choose a fresh output directory")
 			}
 			b, e := r.ReadFile(old + "/" + a.Path)
 			if e != nil || snapfmt.Checksum(b) != a.SHA256 {
-				return zero, errors.New("previous managed artifact changed or missing")
+				return zero, errors.New("a file in the previous snapshot was changed or removed; preserve local edits and restore a verified snapshot, or choose a fresh output directory")
 			}
 			oldFiles[a.Path] = a
 		}
@@ -170,20 +170,20 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 				return nil
 			}
 			if d.Type()&os.ModeSymlink != 0 {
-				return errors.New("symlink in previous snapshot")
+				return errors.New("the previous snapshot contains a symbolic link; only regular files and directories can be carried forward")
 			}
 			if d.IsDir() {
 				return r.MkdirAll(stage+"/"+p, 0700)
 			}
 			if !d.Type().IsRegular() {
-				return errors.New("special file in previous snapshot")
+				return errors.New("the previous snapshot contains a special file; only regular files and directories can be carried forward")
 			}
 			if p == "manifest.json" || oldFiles[p].Path != "" {
 				return nil
 			}
 			for _, a := range snap.Artifacts {
 				if strings.EqualFold(p, a.Path) {
-					return errors.New("new managed artifact collides with unmanaged file")
+					return errors.New("an export file would overwrite an unmanaged local file; preserve and move that file, or choose a fresh output directory")
 				}
 			}
 			b, e := or.ReadFile(p)
@@ -275,7 +275,7 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 	}
 	published = true
 	if e = syncDir(r, "."); e != nil {
-		return m, fmt.Errorf("snapshot visible but directory durability uncertain: %w", e)
+		return m, fmt.Errorf("the new snapshot is visible, but syncing its directory failed; verify the current snapshot before retrying: %w", e)
 	}
 	return m, nil
 }

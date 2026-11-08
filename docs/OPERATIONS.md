@@ -10,6 +10,8 @@ Only transient read responses are retried. Export initiation is never retried au
 
 ## Results and errors
 
+Use `isc-exporter -help` for action examples and options. Invalid command-line options produce one error with usage guidance, rather than a full help listing. CLI failures use an `error:` prefix and a nonzero exit status.
+
 A successful export writes a JSON result to standard output. Structured logs and failures go to standard error. SDK token transport failures may also print to standard output; account for this when processing results in scripts.
 
 The result contains:

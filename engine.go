@@ -33,18 +33,18 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 	defer cancel()
 	supported, err := e.API.Discover(ctx)
 	if err != nil {
-		return out, fmt.Errorf("discover: %w", err)
+		return out, fmt.Errorf("cannot discover exportable types: %w", err)
 	}
 	known := map[string]bool{}
 	for _, s := range supported {
 		if !validComponent(s) {
-			return out, errors.New("invalid discovered type")
+			return out, errors.New("ISC returned an invalid exportable type name")
 		}
 		known[s] = true
 	}
 	for _, s := range append(append([]string{}, e.Config.Include...), e.Config.Exclude...) {
 		if !known[s] {
-			return out, fmt.Errorf("unsupported type %q", s)
+			return out, fmt.Errorf("type %q is not exportable in this tenant; check include and exclude in the exporter policy", s)
 		}
 	}
 	selected := map[string]bool{}
@@ -65,14 +65,14 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 	}
 	sort.Strings(out.Types)
 	if len(out.Types) == 0 {
-		return out, errors.New("no exportable types selected")
+		return out, errors.New("no exportable types remain after filtering; check include and exclude in the exporter policy")
 	}
 	id, err := e.API.Start(ctx, out.Types)
 	if err != nil {
-		return out, fmt.Errorf("start export (not retried): %w", err)
+		return out, fmt.Errorf("cannot start export; the request was not retried, so inspect tenant export jobs before repeating: %w", err)
 	}
 	if id == "" {
-		return out, errors.New("empty export job ID")
+		return out, errors.New("ISC returned no export job ID; inspect tenant export jobs before starting another export")
 	}
 	out.JobID = id
 	poll, _ := Duration(e.Config.PollInterval)
@@ -80,7 +80,7 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 		var status string
 		status, err = e.API.Status(ctx, id)
 		if err != nil {
-			return out, fmt.Errorf("poll export: %w", err)
+			return out, fmt.Errorf("cannot check export progress: %w", err)
 		}
 		// SP-Config export statuses: https://developer.sailpoint.com/docs/tools/sdk/powershell/beta/models/sp-config-export-job-status/
 		// The pinned Go SDK exposes Status as a string, without enum constants.
@@ -88,7 +88,7 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 		case "COMPLETE":
 			out.Raw, err = e.API.Download(ctx, id)
 			if err != nil {
-				return out, fmt.Errorf("download export: %w", err)
+				return out, fmt.Errorf("cannot download completed export: %w", err)
 			}
 			return out, nil
 		case "NOT_STARTED", "IN_PROGRESS":
@@ -96,7 +96,7 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 				return out, err
 			}
 		case "FAILED", "CANCELLED":
-			return out, fmt.Errorf("export job terminated: %s", status)
+			return out, fmt.Errorf("ISC export job ended with status %s; inspect the job in ISC", status)
 		default:
 			return out, errors.New("unrecognized export job status")
 		}
