@@ -109,4 +109,8 @@ Configuration Hub Object Mappings can be retrieved separately into an archive co
 
 Configuration exports can contain secrets. Protect output storage and access; files use permissions 0600 and directories 0700, allowing access only to the owning user. Exported payloads are preserved without redaction. No encryption or signature verification is provided. Exporter logs omit raw API error bodies and object payloads, and SDK credentials are not written to exporter policy or manifests.
 
-Use private storage under your control and an HTTPS SDK connection URL you trust. See [configuration](docs/CONFIGURATION.md) for authentication and logging limitations. The source code has no assigned open-source license; dependency notices are linked above.
+Use private storage under your control and an HTTPS SDK connection URL you trust. See [configuration](docs/CONFIGURATION.md) for authentication and logging limitations.
+
+## License
+
+The original configexporter source code and documentation are licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their own licenses; see [dependency licenses and notices](docs/DEPENDENCIES.md).
