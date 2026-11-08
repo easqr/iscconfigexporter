@@ -1,35 +1,41 @@
-# Verified API findings
+# API capabilities and limits
 
-Reviewed 2026-11-01 against SailPoint Go SDK v2.7.106 (latest stable v2 release; v3 is a separate major version), generated beta API source and official documentation:
+The exporter uses SailPoint Go SDK **v2.7.106**. The endpoint descriptions below reflect that pinned dependency, rather than a claim about the latest SDK release. Live-tenant verification has been completed by the owner; the [validation checklist](LIVE_VALIDATION.md) is available for repeat checks.
 
-- https://github.com/sailpoint-oss/golang-sdk/tree/v2.7.106
-- https://developer.sailpoint.com/docs/extensibility/configuration-management/saas-configuration/
-- https://github.com/sailpoint-oss/colab-isc-config-hub-history/blob/main/scripts/backup.mjs
+## Configuration exports
 
-The reference discovers exportable types, initiates one asynchronous SP-Config job, polls and downloads an objects envelope. We reproduce that flow, without its noise stripping, array sorting, Git integration or directory-wide deletion. No reference implementation source was copied.
+The Beta SP-Config client provides discovery (`ListSpConfigObjects`), export initiation (`ExportSpConfig` with `IncludeTypes`), status polling (`GetSpConfigExportStatus`) and download (`GetSpConfigExport`). These methods expose no pagination controls. The complete download is buffered in memory, so memory requirements grow with export size. Results expire; download them promptly after completion.
 
-SDK beta methods verified in source: ListSpConfigObjects, ExportSpConfig with ExportPayload.IncludeTypes, GetSpConfigExportStatus, GetSpConfigExport. Discovery is an unpaginated array; these SDK methods expose no limit/offset. Download is one JSON document, not paginated. No hard object limit is documented here; memory usage is proportional to the full export. Job results have expiration metadata: download promptly. Only COMPLETE allows download. Failed, cancelled, unexpected states fail closed.
+The supported job states are `NOT_STARTED`, `IN_PROGRESS`, `COMPLETE`, `CANCELLED` and `FAILED`. Only `COMPLETE` permits download. The pinned Go SDK represents status as a string; the exporter rejects unrecognized values.
 
-The generated ConfigObject omits unknown envelope fields including signatures. The SDK restores its raw HTTP response body after decoding; the adapter reads that body to preserve all original fields and numeric precision. No separate REST export implementation is required.
+The adapter reads the SDK's restored raw response body after decoding. This preserves envelope fields, signatures and numeric precision that could be lost by serializing generated models. It does not verify signatures or redact tenant configuration.
 
-Connection settings are loaded from local config.json or SAIL_* without the deprecated home-directory fallback. Configuration and API construction use the root SDK's NewConfiguration and NewAPIClient. Token exchange and caching belong to the SDK. SP-Config and Hub share one root client, with a context-aware gate protecting the SDK's mutable caches. The SDK HTTP client's retry engine handles transient GET responses; POST initiation is never retried. No custom token source or engine retry loop remains. Configuration errors and API error bodies are sanitized. See CONFIGURATION.md for verified native token timeout/refresh limitations and SDK_REUSE_AUDIT.md for the reuse review. No live tenant was contacted.
+Connection settings, authentication limits and retries are described in the [configuration reference](CONFIGURATION.md). Component boundaries are described in [architecture](ARCHITECTURE.md).
 
-## Configuration Hub ownership limitation
+## Configuration Hub backup inventory
 
-Official Configuration Hub endpoints and pinned SDK v2026 source were reviewed:
+The V2026 `ListBackups` method returns an array of backup records. It exposes status filtering, but no pagination controls. Records include job ID, tenant, status, creation time, deletion permission and partial-backup status. Uploaded configurations are distinct resources with separate endpoints.
 
-- https://developer.sailpoint.com/docs/api/v2026/list-backups/
-- https://developer.sailpoint.com/docs/api/v2026/delete-backup/
-- SDK api_v2026/api_configuration_hub.go and model_backup_response_1.go.
+The reviewed SDK contract does not establish that an SP-Config export job ID identifies a persistent Configuration Hub backup, or that every export creates a deletable backup. Names, requesters, types and matching IDs are insufficient evidence of exporter ownership. The exporter does not create extra backups, upload configurations or infer registry records from export responses.
 
-ListBackups returns an unpaginated array (only status filtering is exposed), with jobId, tenant, type, requesterName, created/completed, userCanDelete, isPartial and backupType. DeleteBackup accepts an ID; permissions may still change and return 403, records may disappear (404). COMPLETE plus isPartial=false indicates a fully successful record; userCanDelete must be explicit true for eligibility. Uploaded configurations have distinct endpoints and are not interchangeable with ordinary backups. No independent ownership marker or conditional deletion token is present. requesterName/name/type are not ownership evidence.
+The supplied `sdk.Backups` adapter provides read-only inventory. Its `Delete` method returns `ErrOwnershipUnavailable` without issuing an HTTP request. Without an independent ownership verifier, `BackupManager` lists records, skips them and reports the limitation. Enabling cleanup or supplying a local registry does not enable deletion.
 
-Official SaaS configuration documentation describes backups and exports as related operations using the same APIs, but the reviewed contract does not guarantee that a specific SP-Config export job ID is the persistent Configuration Hub backup ID, or that every SP-Config export creates a deletable Configuration Hub record. Shared terminology and similar response fields cannot establish that association. No extra backup creation or upload is performed. We cannot safely populate a Configuration Hub ownership registry from the SP-Config response alone.
+## Custom backup integrations
 
-Therefore the shipped SDK Backups adapter is an implemented read-only inventory: Delete always returns ErrOwnershipUnavailable without HTTP traffic. It does not auto-register records. BackupManager without an independent verifier lists records, skips all and reports the limitation. Enabling cleanup never bypasses this. FileRegistry is implemented for future proven associations; a registry record is trusted local provenance, not independent remote ownership proof. Protect its location from writes by other users. No production verifier is shipped.
+Go applications can supply a `BackupAPI` and `OwnershipVerifier` for a separately verified integration. The retention engine checks ownership, tenant and creation metadata, complete status, explicit deletion permission, duplicate identities and a surviving newest successful backup. It rechecks records before deletion and reports partial failures separately from export publication.
 
-The generic BackupManager implements both retention policies, preview, duplicate detection, newest-success protection (all ties), tenant/creation matching, current-operation protection, state and ownership rechecks, successor availability and partial deletion reports. Its destructive path is tested exclusively with fake independently verified providers. A future platform must supply a genuinely verified BackupAPI and OwnershipVerifier before using that path. Rechecks do not eliminate a remote time-of-check/time-of-use race; the reviewed API has no conditional delete guarantee. The built-in adapter consequently remains non-destructive. A future destructive adapter must resolve that limitation as well as ID association, not simply return true from a verifier.
+A registry is local provenance, not independent remote ownership evidence. Rechecks also cannot eliminate a change between verification and deletion. The reviewed deletion API exposes no conditional deletion token. A custom destructive integration must establish both reliable ownership and safe deletion eligibility. The supplied adapter provides neither destructive capability nor a production ownership verifier; destructive-provider tests use local doubles.
 
-## Optional read-only object mappings
+## Object mappings
 
-The separately invoked mapping operation uses the pinned V2026 `GetObjectMappings(ctx, sourceOrg)` SDK method, GET `/v2026/configuration-hub/object-mappings/{sourceOrg}`, with `sp:config-object-mapping:read`. The source organization is distinct from the authenticated target/current organization; `default` selects unassociated mappings. This SDK method returns one array and exposes no pagination controls. Original response bytes are preserved after the generated decoder succeeds; no custom REST/authentication implementation is added. Generated Beta/V2026 clients retain native per-version token caches; mapping and backup reads share the existing V2026 client. See [MAPPINGS.md](MAPPINGS.md) for the schema, provenance and synthetic verification. Normal exports do not invoke this optional endpoint.
+The optional mapping action uses V2026 `GetObjectMappings(ctx, sourceOrg)`, GET `/v2026/configuration-hub/object-mappings/{sourceOrg}`. The method returns one array and exposes no pagination controls. It is independent of configuration exports and backup evaluation. See [mapping retrieval](MAPPINGS.md) for permissions, bundle format and usage.
+
+## References
+
+- [Pinned Go SDK source](https://github.com/sailpoint-oss/golang-sdk/tree/v2.7.106)
+- [SailPoint SaaS configuration workflow](https://developer.sailpoint.com/docs/extensibility/configuration-management/saas-configuration/)
+- [Export job status model](https://developer.sailpoint.com/docs/tools/sdk/powershell/beta/models/sp-config-export-job-status/)
+- [Configuration Hub backup listing](https://developer.sailpoint.com/docs/api/v2026/list-backups/)
+- [Configuration Hub backup deletion](https://developer.sailpoint.com/docs/api/v2026/delete-backup/)
+
+The pinned SDK source defines the calls used by this version. Current online documentation may describe other SDK versions or route families.

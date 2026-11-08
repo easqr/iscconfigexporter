@@ -1,15 +1,47 @@
 # Execution and recovery
 
-Service validates config, starts a context-bounded workflow, discovers/selects types, starts exactly one job, polls, downloads, validates all objects, stages and publishes a generation. Cleanup runs only after publication. A malformed envelope, unknown status, missing objects array, tenant mismatch or duplicate identity fails the entire export. An empty objects array is a valid complete export and reconciles all previously managed files.
+## Export lifecycle
 
-Read requests retry HTTP 408, 429 and 5xx through the SDK retryable HTTP client. SDK DefaultBackoff interprets Retry-After for 429/503. Permanent/auth/transport failures stop with sanitized diagnostics; contexts preserve cancellation/deadline errors. POST is never retried. An ambiguous initiation failure may have created a remote job: inspect ISC manually before repeating. Cancellation does not issue a remote cancel API request; the remote job may continue. No raw API failure bodies or configuration objects are logged. No live network health checks occur during construction, help or local validation. Construction loads native SDK settings; help/local validation do not. Native SDK token acquisition is outside the request context and configured API timeout, and cached tokens are not refreshed by expiry; see CONFIGURATION.md. SDK token transport failures can print SDK messages to stdout. Deprecated home-directory configuration is not loaded.
+An export validates the policy, discovers and selects supported types, starts one job, polls for completion, downloads and validates the objects, then publishes a complete snapshot. Optional backup evaluation runs after publication.
 
-A failure before publication preserves the old tenant pointer. Staging is removed after ordinary error returns; process termination may leave orphan generations and locks. An error after pointer rename means a complete new snapshot may be visible, but parent-directory durability is uncertain. Inspect the symlink target and verify every manifest checksum before deciding which generation to retain. Repeated export reuses unchanged object inodes and creates a new operational manifest. Do not edit generation artifacts, because unchanged files may be hardlinked across generations.
+The exporter waits on `NOT_STARTED` and `IN_PROGRESS`, downloads on `COMPLETE`, and stops on `FAILED`, `CANCELLED`, or an unrecognized status. Malformed envelopes, a missing objects array, tenant mismatches and duplicate identities fail the export. A valid empty objects array publishes an empty managed snapshot and removes previously managed paths from the current view. Selecting no exportable types is an error before job creation.
 
-A stale `.isc-lock-<tenant>` requires manual inspection: ensure no writer is active, pin and verify the current generation, then remove only that stale lock. Reserved `.isc-snapshots`, `.isc-pointer-*`, tenant pointers and manifest.json belong to the exporter. Old or orphan generations are never automatically garbage-collected. Operators may archive unreferenced generations after confirming readers have released them. Do not delete the target of any current pointer. For rollback, stop writers, verify the desired old generation and replace the tenant symlink atomically using local operator tooling. There is no configuration import or remote restore command.
+Only transient read responses are retried. Export initiation is never retried automatically. If initiation fails ambiguously, inspect ISC before repeating: a remote job may already exist. Cancellation does not cancel the remote job, which may continue running. See [configuration](CONFIGURATION.md) for retry settings and authentication timeout limits.
 
-Unmanaged regular files in the current generation are copied to the next generation. Only prior manifest-managed object paths are reconciled; unmanaged files outside tenant generations are untouched. An ordinary directory at the tenant path is refused. Unmanaged filename collisions, nested symlinks/special files, bad previous manifests or edited/missing managed files block publication. Use a fresh output root or reconcile the local edits manually after preserving evidence. The output root must be private trusted storage and must support POSIX atomic rename, hardlinks and fsync. Capacity, quota and permission failures surface as publication errors; no success manifest is announced.
+## Results and errors
 
-Result.Manifest describes the persisted export. Result.Cleanup contains audit decisions and ownership limitations. Result.CleanupError reports lifecycle failure while the export remains successful; CLI emits the result then exits nonzero on cleanup failure. A safe ownership limitation is reported in Cleanup.Limitation, not treated as a failed export. Missing registry ownership, ambiguous IDs and disappearing or changing backup records always prevent deletion. Built-in SDK deletion always fails before HTTP traffic. No backend call is retried for deletion. The generic verified-provider executor aggregates partial deletion errors without undoing the export.
+A successful export writes a JSON result to standard output. Structured logs and failures go to standard error. SDK token transport failures may also print to standard output; account for this when processing results in scripts.
 
-The optional `-retrieve-mappings` action is independent of this export lifecycle. It only reads Configuration Hub mappings and publishes a new separate bundle; it never starts an export, runs backup cleanup, or modifies an object snapshot. Check its declared source/target and actual API origin in `provenance.json`, and verify the mapping-file SHA-256 before using an archived bundle. Mapping retrieval errors leave configuration exports unchanged; a missing read permission is not a reason to grant more permissions to ordinary exports. See [MAPPINGS.md](MAPPINGS.md) for new-directory publication/recovery and the `default` source-group boundary.
+The result contains:
+
+| JSON field | Meaning |
+| --- | --- |
+| `manifest` | Metadata for the published snapshot, including artifact checksums and changed paths |
+| `cleanup` | Backup evaluation decisions and any ownership limitation |
+| `cleanup_error` | Cleanup failed after the export was published; present only on failure |
+
+The CLI emits the published result before returning a nonzero exit status for cleanup failure. An ownership limitation in `cleanup.limitation` is not itself an export failure. The supplied SDK adapter cannot delete backups, regardless of the retention policy. See [API capabilities and limits](API.md).
+
+## Snapshot storage
+
+Snapshots use immutable generation directories and a tenant symlink pointing to the current generation. Resolve that pointer once when reading several files; Go applications can use `CurrentPath`. Resolving it for each file can mix generations during an export.
+
+Treat generation files as read-only. Unchanged artifacts can be hardlinked across generations, so editing one can alter older snapshots too. Changed or missing managed files prevent the next publication.
+
+Only paths listed in the previous manifest are reconciled. Unmanaged regular files in the current generation are copied forward; unmanaged files elsewhere in the output root are untouched. Name collisions, nested symlinks, special files, invalid manifests, and an ordinary directory at the tenant pointer path block publication. Preserve any local edits before resolving a conflict or choosing a fresh output root.
+
+Use private, trusted local POSIX storage with atomic rename, hardlinks and directory sync support. Capacity, quota and permission failures can prevent publication. Old and orphan generations are not automatically removed and continue to consume disk space.
+
+## Interrupted or failed publication
+
+Failures before the tenant pointer is replaced preserve the previous snapshot. Temporary staging is removed after ordinary errors, but process termination can leave orphan generations, temporary pointers and locks.
+
+An error after pointer replacement can mean a complete new snapshot is visible while its durability after a crash is uncertain. Inspect the pointer and verify the referenced manifest and every artifact checksum before retrying or selecting a recovery generation. Cancellation racing with pointer replacement may still publish.
+
+Reserved paths include `.isc-snapshots`, `.isc-pointer-*`, `.isc-lock-<tenant>`, tenant pointers and `manifest.json`. Before removing a stale lock, ensure no writer is active and verify the current generation. Never remove an active writer's lock.
+
+Archive or remove an unreferenced generation only after confirming that no current pointer or reader uses it. For local rollback, stop writers, verify the desired generation and atomically replace the tenant symlink using operator tooling. This changes the local snapshot view; the exporter has no remote import or restore command.
+
+## Mapping archives
+
+`-retrieve-mappings` reads Configuration Hub mappings into a separate new directory. It does not run an export or backup evaluation, or modify an object snapshot. Verify the declared source and target, actual API origin, and mapping checksum in `provenance.json` before using an archive. See [mapping retrieval](MAPPINGS.md) for permissions, publication and recovery details.

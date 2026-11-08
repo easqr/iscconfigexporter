@@ -1,6 +1,8 @@
 # Dependency and license review
 
-Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106, the latest stable v2 release. The newer v3 major was inspected at v3.1.74 during the native-authentication review; its token-helper limitations are the same, and migration would also change API endpoints, so this change keeps the verified v2 API contract. Native configuration now imports the root SDK and its Viper stack. Runtime modules below were identified with `go list -deps` for ./cmd/isc-exporter. Reviewed local module license files; complete notices are retained in docs/licenses. Viper is used directly through a private instance to load local SDK-format config.json without the SDK's deprecated home-directory fallback or global parser state.
+The CLI uses SailPoint Go SDK **v2.7.106**. The table below lists external modules imported by the CLI, checked against the current dependency graph. Full license texts and notices are retained in [licenses](licenses/).
+
+The exporter source has no assigned open-source license. Dependency licenses do not assign a license to the exporter itself.
 
 | Runtime module | Version | License |
 |---|---|---|
@@ -23,8 +25,6 @@ Pinned SDK version: github.com/sailpoint-oss/golang-sdk/v2 v2.7.106, the latest 
 | golang.org/x/text | v0.28.0 | BSD-3-Clause |
 | gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 (see its license/notice) |
 
-The SDK requires retryablehttp and validator. MPL is file-level copyleft: do not describe these dependencies as permissively licensed or strip their notices. No dependency source was modified. Any later distribution must preserve the license notices and satisfy the applicable source-availability obligations for the MPL-covered files (upstream source: https://github.com/hashicorp/go-retryablehttp/tree/v0.7.8 and https://github.com/hashicorp/go-cleanhttp/tree/v0.5.2). This implementation has not published or distributed a release artifact or assigned an open-source license to the component itself.
+The SDK uses retryablehttp and validator. The HashiCorp HTTP dependencies are licensed under MPL-2.0, which has file-level copyleft obligations. No dependency source is modified. Any later distribution must preserve the license notices and satisfy the applicable source-availability obligations for the MPL-covered files (upstream source: [go-retryablehttp](https://github.com/hashicorp/go-retryablehttp/tree/v0.7.8) and [go-cleanhttp](https://github.com/hashicorp/go-cleanhttp/tree/v0.5.2)).
 
-Additional dependency-test modules downloaded during tidy: kr/pretty v0.3.1 (MIT), kr/text v0.2.0 (MIT), rogpeppe/go-internal v1.9.0 (BSD-3-Clause), gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c (BSD-style two-clause). They are not linked into the CLI. License notices are retained for traceability. Other modules may remain in the SDK's module graph without being imported or included in our runtime; rerun the inventory when imports or versions change.
-
-The functional reference colab-isc-config-hub-history is MIT licensed, as stated by its repository. Its architecture was reviewed; no implementation source was copied, and none of its tokenization, restore or Git tooling was reused. Tests use only Go's standard testing package. Static validation is go vet; no unexecuted vulnerability scanner is claimed.
+Additional dependency-test notices are retained for: kr/pretty v0.3.1 (MIT), kr/text v0.2.0 (MIT), rogpeppe/go-internal v1.9.0 (BSD-3-Clause), gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c (BSD-style two-clause). They are not linked into the CLI. License notices are retained for traceability. Other modules can appear in the SDK module graph without being linked into the CLI. Contributor instructions for refreshing the inventory are in [development](DEVELOPMENT.md#dependency-review).

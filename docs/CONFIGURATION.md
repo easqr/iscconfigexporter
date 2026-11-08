@@ -1,6 +1,6 @@
 # Configuration reference
 
-Configuration is one strict JSON document; unknown fields/trailing documents are rejected. JSON avoids adding another configuration parser. Start with exporter.example.json and save policy as exporter.json. Credentials are never accepted in this file; config.json is reserved for the SDK.
+Exporter policy is a single JSON document. Unknown fields and trailing documents are rejected. Copy `exporter.example.json` to `exporter.json` and edit it for your tenant. Keep connection settings and credentials in the separate SDK `config.json` file.
 
 | Field | Default | Constraint/meaning |
 |---|---|---|
@@ -19,13 +19,13 @@ Configuration is one strict JSON document; unknown fields/trailing documents are
 | backup.dry_run | false | Candidate evaluation only; no delete requests |
 | backup.registry | empty | Optional local trusted registry path; example uses ownership.json |
 
-Enabled=true with policy=disabled is invalid. A disabled cleanup with a configured retention policy is allowed as a staged configuration, but the policy must still be valid. Types are validated against discovery at execution; local validation checks syntax without network or credentials. An empty final selection fails before POST. Hours/days are supported by Duration; standard Go units also work. Days are positive integer days with overflow bounds.
+Enabled=true with policy=disabled is invalid. A disabled cleanup with a configured retention policy is allowed as a staged configuration, but the policy must still be valid. Types are validated against discovery at execution; local validation checks syntax without network or credentials. An empty final selection fails before POST. Durations accept Go units such as `30s` and `10m`, plus positive whole days such as `7d`.
 
 ## Native SDK connection and authentication
 
-The adapter loads SDK connection settings from local `config.json` or `SAIL_*` environment variables, then calls `sailpoint.NewConfiguration()` and `sailpoint.NewAPIClient()` from pinned SDK v2.7.106. Authentication, token exchange and caching remain SDK responsibilities. Both SP-Config and Configuration Hub use the same root SDK client. Optional programmatic configuration is accepted by sdk.NewWithConfiguration using the SDK's own Configuration type; caller-owned configuration and HTTP clients are copied rather than mutated.
+Connection and authentication settings use the SailPoint SDK format. The exporter loads these settings from `config.json` or `SAIL_*` environment variables; the SDK handles authentication and token caching. Go applications can supply a `*sailpoint.Configuration` through `sdk.NewWithConfiguration`. Caller-owned configuration and HTTP clients are copied rather than modified.
 
-Use your existing SDK configuration. The normal file is `config.json`, generated if desired with `sail sdk init config`. Its placeholder-only shape is:
+Use your existing SDK configuration. The normal file is `config.json`, generated if desired with `sail sdk init config`. For example:
 
 ```json
 {
@@ -35,19 +35,26 @@ Use your existing SDK configuration. The normal file is `config.json`, generated
 }
 ```
 
-This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. No secret manager is required. The adapter also accepts the SDK environment variables SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative.
+This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. The adapter also accepts the SDK environment variables SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative.
 
 Connection lookup order:
 
 1. If SAIL_BASE_URL is set, use the SAIL_* environment configuration as a whole (it does not merge missing credentials from files).
 2. Otherwise look for exactly `config.json` beside the executable, then in the working directory. Other filenames and extensions are ignored. A malformed or unreadable selected file returns an error rather than falling through to another file.
-3. Otherwise return a configuration error. The deprecated `~/.sailpoint/config.yaml` is not read.
+3. Otherwise return a configuration error. Home-directory configuration is not read.
 
-Missing or malformed configuration is reported as a sanitized error. Configuration loading uses a private parser and does not share the SDK's global Viper state. Help and local -validate do not load SDK configuration or access credentials/network.
+Missing or malformed configuration produces an error without exposing file contents. `-help` and local `-validate` do not load SDK settings, access credentials, or contact ISC.
 
-Native SDK limitations verified in v2.7.106: generated clients lazily acquire and cache tokens, without expiry-based refresh; acquisition uses an SDK-created http.Client rather than the configured API client, and does not receive the request context, timeout or redirect policy. Therefore the export timeout bounds API requests and retry waits but cannot interrupt a blocked native token request. API transport injection likewise does not intercept native token acquisition. Token endpoints are validated as HTTPS URLs without query/userinfo, but the SDK's token HTTP redirect behavior is not overridden. The SDK may print token transport errors to stdout. Recreate an adapter after an expired-token failure; automatic reauthentication is not added by the exporter. Programmatic native Token configuration is also supported. Calls sharing an adapter are serialized to protect generated SDK mutable token caches. These limitations also exist in inspected SDK v3.1.74; no API-version migration was introduced for this change.
+## Authentication limits
 
-The exporter configures the SDK's existing retryable HTTP client with RetryMax=retries and minimum delay=backoff (clamped to 30s). Only GET responses with HTTP 408, 429 or 5xx may retry; POST, unclassified transport/auth failures and permanent errors do not. SDK DefaultBackoff supplies exponential delay (30s cap) and honors Retry-After on 429/503, which can exceed that cap but remains bounded by the request context. There is no second engine retry loop.
+The pinned SDK (v2.7.106) acquires tokens on demand and caches them without expiry-based refresh. A blocked token request cannot be interrupted by the export timeout or cancellation signal: token acquisition uses a separate HTTP client, outside the configured API timeout, transport and redirect policy. Token URLs must use HTTPS without user information or a query string, but token-request redirects follow the SDK's behavior.
 
+The SDK may print token transport errors to standard output. This can affect scripts expecting JSON output. If a long-running Go application encounters an expired-token failure, recreate its adapter; automatic reauthentication is not provided. Programmatically supplied SDK tokens are also supported.
 
-Keep-latest protects every equally newest successful exporter-owned backup. Older-than deletes strictly earlier than now-age; exact boundary is retained. Both require independent verified ownership, successful nonpartial state, explicit deletion permission and a surviving protected successor. The shipped SDK adapter is inventory-only, regardless of these settings; it reports ownership limitations instead of deleting.
+## Request retries
+
+The `retries` setting controls additional attempts; `backoff` controls the initial delay, capped at 30 seconds. Only GET responses with HTTP 408, 429 or 5xx may retry; POST, unclassified transport/auth failures and permanent errors do not. Delays grow exponentially, up to 30 seconds. A server `Retry-After` value on HTTP 429 or 503 can exceed that cap, but waits remain bounded by the request context.
+
+## Backup retention
+
+Keep-latest protects every equally newest successful exporter-owned backup. Older-than selects backups created strictly before the age cutoff; a backup at the exact boundary is retained. Both require independent verified ownership, successful nonpartial state, explicit deletion permission and a surviving protected successor. The supplied SDK adapter is inventory-only, regardless of these settings; it reports ownership limitations instead of deleting. See [API capabilities and limits](API.md) for details.

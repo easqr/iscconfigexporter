@@ -1,18 +1,40 @@
-# Owner-run live-tenant validation checklist
+# Live-tenant validation checklist
 
-The owner has reported completing live-tenant verification. This checklist remains available for repeat validation; it is not a record of individual test results. Automated development tests use local doubles. Use a nonproduction tenant, a private working directory and an authorized tenant administrator. Official SP-Config prerequisites list ORG_ADMIN; confirm tenant-specific Configuration Hub roles, entitlements and endpoint scopes with your SailPoint administrator. Export/discovery/download require sp:config:read; do not grant sp:config:manage solely for this exporter. Configuration Hub inventory may require additional read access. 403 means authorization must be reviewed; the exporter never broadens permissions.
+Live-tenant verification has been completed by the owner. This checklist supports repeat validation and does not record which individual scenarios were performed.
 
-1. Run `go fmt ./...`, `go vet ./...`, `go test ./...`, `go test -race ./...`, then `go build -o isc-exporter ./cmd/isc-exporter` from the repository.
-2. Run `cp exporter.example.json exporter.json`. Edit tenant to the exact tenant identity returned by exports, output to a new private local directory, include to `["ROLE", "SOURCE"]` (or supported test types), backup.enabled to false and policy to disabled.
-3. Run `./isc-exporter -help` and `./isc-exporter -config exporter.json -validate`. Neither should need credentials or contact ISC.
-4. Use the existing native SDK configuration, or generate its separate config.json with `sail sdk init config` and verify BaseURL/ClientId/ClientSecret for the test tenant. Optional SAIL_* variables are supported by the SDK; no exporter-specific credential variables or secret manager are required. Keep SDK config.json private and ignored by Git, and do not expose credentials in screenshots/logs. Verify API client/user permissions above.
-5. Run `./isc-exporter -config exporter.json > result.json`. Expect one asynchronous export job, COMPLETE status and `<output>/<tenant>/manifest.json`. A nonempty CleanupError must not occur with disabled cleanup. Preserve stderr and result.json securely; do not copy raw tenant artifacts into public issue reports.
-6. Resolve the tenant pointer once (library consumers use CurrentPath). Check tenant/job ID, counts and paths in manifest. Decode an `id-<hex>.json` basename to confirm its bytes equal self.id. Check self.type, version, complete object payload and any signatures/unknown fields against the downloaded ISC export through approved tools. Recalculate SHA-256, e.g. `shasum -a 256 <resolved-generation>/ROLE/<artifact>.json`, and compare every entry to the manifest.
-7. Repeat with no tenant changes. Expect a new generation/manifest, Unchanged entries and identical object bytes/inode/mtime. Tenant-generated volatile fields may legitimately cause changes; the exporter does not strip them. Make an authorized benign test configuration change, repeat and verify Modified. Remove only the authorized test object if safe, repeat and verify Deleted; unrelated local files should survive.
-8. Test include/exclude with disjoint types, then an unknown type (must fail before POST). A filter change replaces the managed current snapshot with only selected types; prior generations remain. Run an empty configuration selection only if the tenant can legitimately return zero objects; no special live fixture objects are required.
-9. Verify disabled cleanup does not call Configuration Hub at all and creates no extra backup/upload. If inventory is authorized, set enabled=true, policy=keep_latest and dry_run=true; run with `-cleanup-preview`. Expect inventory decisions that skip all unverified backups and report the ownership limitation. Do not expect deletion or registry auto-population.
-10. Optional older_than preview: set policy=older_than, age=7d, enabled=true, dry_run=true; repeat. The built-in SDK still cannot verify ownership. There is no live destructive validation in this release. Do not populate records based on names, requester, matching IDs alone, or enable a verifier that simply trusts a registry. A future destructive adapter requires documented ID association and atomic eligibility guarantees, then a separately authorized validation plan.
-11. Test cancellation on a nonproduction export with SIGINT. The previous snapshot must remain valid if cancellation occurs before commit. Native SDK token acquisition cannot be interrupted by the export context; inspect that limitation in CONFIGURATION.md before testing cancellation. The remote job may continue; inspect and clean it manually through approved ISC tooling if appropriate. Test an invalid credential/authorization scenario only under your organization's lockout policy; expect sanitized failures and no new published snapshot.
-12. Inspect disk usage and recovery behavior using docs/OPERATIONS.md. For a failed publication, validate the old generation before retrying. Never restore remote configurations as part of this plan. Follow your normal credential-handling procedure when finished; do not remove or overwrite unrelated SDK configuration.
+## Preparation
 
-No local rollback changes ISC: this component only exports and inventories. Export initiation can create remote job records; their lifecycle/expiry and Hub association require tenant validation by the owner. SDK beta export endpoints can change, discovery/download are unpaginated, full exports use proportional memory, and the built-in Hub adapter deliberately issues no DELETE requests.
+Build the CLI using the [README](../README.md#build-and-run). Contributors should also run the separate [development checks](DEVELOPMENT.md#local-checks).
+
+Use a nonproduction tenant and a private working directory. Confirm the required tenant role and API permissions with your administrator. SP-Config discovery and export require `sp:config:read`; backup inventory and mapping retrieval can require additional read permissions. An HTTP 403 requires reviewing authorization. The exporter does not broaden permissions.
+
+1. Copy `exporter.example.json` to `exporter.json`. Set `tenant` to the identity returned in exports, choose a new private output directory, select supported types such as `ROLE` and `SOURCE`, and leave backup evaluation disabled.
+2. Run `./isc-exporter -help` and `./isc-exporter -config exporter.json -validate`. Neither operation should need credentials or contact ISC.
+3. Configure the test tenant's SDK `config.json` or `SAIL_*` settings using the [configuration reference](CONFIGURATION.md#native-sdk-connection-and-authentication). Protect credentials and confirm the connection targets the intended tenant.
+
+## Export and publication
+
+1. Run `./isc-exporter -config exporter.json > result.json`. Expect one asynchronous export job, a `COMPLETE` status and `<output>/<tenant>/manifest.json`. With backup evaluation disabled, `cleanup_error` should be absent. Keep results and logs private.
+2. Resolve the tenant pointer once. Go applications can use `CurrentPath`. Check the manifest's tenant, job ID, counts and paths. Decode an `id-<hex>.json` basename and compare it with `self.id`; verify the type, version and complete envelope against the source export. Recalculate each artifact's SHA-256, for example with `shasum -a 256`, and compare it with the manifest.
+3. Repeat without tenant changes. Expect a new generation and manifest; identical objects should appear under `changes.unchanged` with unchanged bytes, inode and modification time. Tenant-generated volatile fields can legitimately produce changes. If appropriate for the test tenant, change a test object, export again and check `changes.modified`; remove the test object and check `changes.deleted`.
+4. Test include and exclude filters. The current managed snapshot should contain only the selected types; prior generations remain on disk. An unknown type or a selection that excludes all discovered types should fail before export initiation. A valid selection returning zero objects should publish an empty managed snapshot; test this only when the tenant can return such a result.
+
+## Optional backup evaluation
+
+With backup evaluation disabled, ordinary exports should make no Configuration Hub inventory requests. They do not issue separate backup-creation or upload requests.
+
+If inventory access is available, set `backup.enabled=true`, `backup.policy="keep_latest"` and `backup.dry_run=true`, then export with `-cleanup-preview`. Expect unverified backups to be skipped and the ownership limitation to be reported. Optionally repeat with `backup.policy="older_than"` and `backup.age="7d"`.
+
+The supplied SDK adapter cannot delete backups or populate the ownership registry automatically. A local registry does not remove that limitation. See [API capabilities and limits](API.md).
+
+## Optional mapping retrieval
+
+Follow the [mapping CLI example](MAPPINGS.md#cli), choosing a new directory separate from the export tree. Validate the request with `-validate`, then retrieve it. Confirm `mappings.json` and `provenance.json` exist, the source/target and API origin are correct, and the mapping checksum matches provenance. Configuration snapshots should remain unchanged.
+
+## Cancellation and recovery
+
+Send SIGINT during a test export. Cancellation before pointer replacement should preserve the previous generation; cancellation racing with replacement can still publish. The remote job may continue. SDK token acquisition cannot be interrupted by the export context; review [authentication limits](CONFIGURATION.md#authentication-limits) before interpreting cancellation results.
+
+Test credential or permission failures only within your organization's lockout policy. Expect sanitized errors and no new published snapshot for failures before publication.
+
+Inspect disk usage, stale locks and recovery using [operations](OPERATIONS.md). Verify the current generation before retrying a failed publication. Restoring a local pointer does not import configuration into ISC. Follow your credential-handling procedure when finished.

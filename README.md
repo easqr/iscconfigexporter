@@ -85,6 +85,7 @@ Snapshots publish atomically through the tenant symlink. Consumers needing multi
 ## Operations and security
 
 
+- [Documentation overview](docs/README.md)
 - [Configuration reference](docs/CONFIGURATION.md)
 - [Operational behavior and recovery](docs/OPERATIONS.md)
 - [Live-tenant validation checklist](docs/LIVE_VALIDATION.md)

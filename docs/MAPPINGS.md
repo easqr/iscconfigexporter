@@ -1,6 +1,6 @@
 # Optional Configuration Hub mapping retrieval
 
-Mapping retrieval is a separate read-only operation. It reuses the existing SDK configuration/authentication and the existing V2026 Configuration Hub client. It does not run SP-Config discovery, start an export or backup, poll a job, run cleanup, or mutate tenant data. Ordinary configuration exports never call mapping endpoints and require no additional mapping permission.
+Mapping retrieval is a separate read-only operation. It reuses the SDK connection settings and V2026 Configuration Hub client. It does not run SP-Config discovery, start an export or backup, poll a job, run cleanup, or mutate tenant data. Ordinary configuration exports never call mapping endpoints and require no additional mapping permission.
 
 ## CLI
 
@@ -22,7 +22,7 @@ Optional `-mapping-export-job EXISTING-JOB-ID` records operator-supplied correla
 
 Add `-validate` to validate policy, mapping options, and destination separation without loading SDK credentials, issuing requests, or creating directories. Local validation does not check remote permissions. Retrieval uses the policy's existing timeout/retry/backoff settings. Native SDK token acquisition still has the limitations documented in [CONFIGURATION.md](CONFIGURATION.md); generated Beta and V2026 clients cache tokens separately, while mappings and backups share the V2026 cache and adapter gate.
 
-Successful retrieval writes one JSON publication record to standard output containing directory and provenance, **not mapping values**. Permission, transport, malformed-response, validation, and publication errors return the existing CLI nonzero status. HTTP error bodies are withheld. No live tenant calls were used to verify this feature.
+Successful retrieval writes one JSON publication record to standard output containing directory and provenance, **not mapping values**. Permission, transport, malformed-response, validation, and publication errors return a nonzero exit status. HTTP error bodies are withheld.
 
 ## Bundle contract, schema 1
 
@@ -65,17 +65,19 @@ defer cancel()
 saved, err := exporter.RetrieveMappings(ctx, api, exporter.MappingRequest{
     SourceOrg: "invented-prod", TargetTenant: c.Tenant,
 })
-// Handle err before publishing.
+if err != nil { return err }
 publication, err := (exporter.MappingFileStore{
     Directory: "./mapping-archives/prod-to-sandbox-001", ExportRoot: c.Output,
 }).Publish(ctx, saved)
 ```
 
+The example assumes an existing context, exporter policy, SDK adapter and timeout, and returns errors to its caller. Check the publication error before using its result.
+
 `MappingAPI` is a separate interface for optional mapping retrieval. `RetrieveMappings` performs no filesystem operations. `MappingFileStore.Publish` revalidates the checksum/count/provenance and copies input bytes before writing. `ExportRoot` enforces output separation when supplied; the CLI always supplies it. Direct library callers must identify the export root or independently choose separate storage. The root library and `snapshot` package remain SDK-free; generated models stay inside `sdk`.
 
 ## Offline differ handoff
 
-For tenant-specific source mappings, import the saved array using the existing differ action:
+For tenant-specific source mappings, import the saved array with the differ:
 
 ```sh
 isc-configdiffer --mode drift \
@@ -88,10 +90,10 @@ isc-configdiffer --mode drift \
 
 Use a policy with `version:2`, `id`, and `profile:"isc-portable-v2"` at the policy path above. The saved bytes' SHA-256 can be checked against `provenance.json`. When given the bare array path above, the differ uses explicit source/target context and hashes the file. Passing the bundle directory instead validates `provenance.json` automatically; the sidecar records retrieval context and integrity rather than remote authenticity. Its strict importer can reject additional response fields or unsupported active JSONPath expressions, even when retrieval validly preserved them. Retrieval success does not imply a rule is supported or applicable in a comparison. Disabled unsupported paths stay inert; unsupported active rules must never be silently dropped. Hub substitutions remain separate from strict directional environment assertions.
 
-## API evidence and verification
+## API and permissions
 
-The implementation uses the locally inspected pinned Go SDK **v2.7.106**, `api_v2026.ConfigurationHubAPIService.GetObjectMappings(ctx, sourceOrg).Execute()`, which returns `[]ObjectMappingResponse`, HTTP response, and error. The generated request is GET `/v2026/configuration-hub/object-mappings/{sourceOrg}`. This SDK contract exposes no pagination controls. There is no second REST implementation, API-version fallback, or dependency upgrade.
+This version uses the pinned Go SDK v2.7.106 V2026 endpoint, GET `/v2026/configuration-hub/object-mappings/{sourceOrg}`, with no pagination controls.
 
-The required permission is `sp:config-object-mapping:read`, documented in [SailPoint's Configuration Hub SDK reference](https://developer.sailpoint.com/docs/tools/sdk/typescript/configuration_hub/methods/configuration-hub/). That current SDK reference uses a different route family; this integration deliberately uses the verified pinned Go V2026 contract. Source organization and `default` semantics are also documented there. JSON mapping fields and enabled behavior are described in [Mapping Objects](https://documentation.sailpoint.com/saas/help/confighub/config_hub_mapping.html). No built-in substitutions or parity with proprietary Configuration Hub comparison are assumed.
+The required permission is `sp:config-object-mapping:read`. Ordinary exports do not require it. See [SailPoint's Configuration Hub SDK reference](https://developer.sailpoint.com/docs/tools/sdk/typescript/configuration_hub/methods/configuration-hub/) for permission and source-group semantics, and [Mapping Objects](https://documentation.sailpoint.com/saas/help/confighub/config_hub_mapping.html) for mapping fields and enabled behavior. Online SDK documentation can use a different route family from this pinned Go integration.
 
-Synthetic tests cover the exact SDK endpoint, GET-only behavior, native authentication and per-version caches, retries/permanent errors, cancellation, raw-byte and unknown-field preservation, disabled status, default scope, strict response validation, provenance, file permissions, no replacement, export-tree separation including symlink aliases, error redaction, CLI operation isolation, and local validation with no SDK loading or writes. A separate synthetic differ test exercises retrieval → bundle publication → offline import. Tests use no tenant credentials, real exports, or network services.
+Retrieval preserves mappings; it does not apply substitutions or claim parity with Configuration Hub comparison. For implementation and automated verification details, see the [SDK integration review](development/SDK_INTEGRATION.md).
