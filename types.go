@@ -4,7 +4,7 @@ package exporter
 import (
 	"context"
 	"encoding/json"
-	snapfmt "github.com/elianderson/iscutilities/configexporter/snapshot"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"time"
 )
 

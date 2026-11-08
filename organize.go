@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	snapfmt "github.com/elianderson/iscutilities/configexporter/snapshot"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"sort"
 	"strings"
 	"time"

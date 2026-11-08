@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	exporter "github.com/elianderson/iscutilities/configexporter"
-	"github.com/elianderson/iscutilities/configexporter/sdk"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 )
 

@@ -19,7 +19,7 @@ Edit tenant/output and filters in `exporter.json`. Configure connection and auth
 
 ## Library usage
 
-Module path: `github.com/elianderson/iscutilities/configexporter`. This repository has no remote and has not been published; use a local `replace` directive from another application until the owner assigns a canonical module location.
+Module path: `gitlab.com/easqrtech/iam/iscconfigexporter`. This module is published on GitLab.
 
 ```go
 c := exporter.DefaultConfig()
@@ -100,7 +100,7 @@ Rename your exporter policy to `exporter.json` and remove `base_url`; the SDK no
 
 ## SDK-free snapshot contract
 
-`github.com/elianderson/iscutilities/configexporter/snapshot` exposes manifest/artifact models, strict JSON decoding, canonical identity paths, pinned directory reading, and exporter-format in-memory validation. It imports only the Go standard library. Existing root `Artifact`, `Changes`, `Manifest`, and `Snapshot` remain compatible aliases; root organization and export APIs are unchanged.
+`gitlab.com/easqrtech/iam/iscconfigexporter/snapshot` exposes manifest/artifact models, strict JSON decoding, canonical identity paths, pinned directory reading, and exporter-format in-memory validation. It imports only the Go standard library. Existing root `Artifact`, `Changes`, `Manifest`, and `Snapshot` remain compatible aliases; root organization and export APIs are unchanged.
 
 Readers choose `snapshot.SnapshotMode` (manifest-listed integrity-checked artifacts) or `snapshot.TreeMode` (current edited configuration inventory; manifest scope and historical provenance). A manifest-free tree must declare `Options.Types`. Root symlinks resolve once; nested inventory links and special files are rejected. See the sibling [export input contract](../configdiffer/docs/contracts.md) and [comparison policy/report contract](../configdiffer/docs/policy.md). Ordinary exports and the exporter CLI do not require the differ or Configuration Hub permissions.
 

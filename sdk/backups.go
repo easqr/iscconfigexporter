@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
-	exporter "github.com/elianderson/iscutilities/configexporter"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	v2026 "github.com/sailpoint-oss/golang-sdk/v2/api_v2026"
 )
 

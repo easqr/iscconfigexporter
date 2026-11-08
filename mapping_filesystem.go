@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	snapfmt "github.com/elianderson/iscutilities/configexporter/snapshot"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 )
 
 // MappingFileStore publishes an independent bundle to a NEW directory. Its parent

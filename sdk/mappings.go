@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 
-	exporter "github.com/elianderson/iscutilities/configexporter"
-	"github.com/elianderson/iscutilities/configexporter/snapshot"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 )
 
 // GetMappings uses the existing root SDK client, gate and GET retry policy.

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	exporter "github.com/elianderson/iscutilities/configexporter"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 )
 
 const sdkMappingFixture = `[{"objectMappingId":"invented-map","objectType":"ROLE","jsonPath":"$.owner.name","sourceValue":"Invented Owner","targetValue":"Other Invented Owner","enabled":false,"future":{"precise":9007199254740993}}]`

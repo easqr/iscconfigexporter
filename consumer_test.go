@@ -3,7 +3,7 @@ package exporter_test
 import (
 	"context"
 	"encoding/json"
-	"github.com/elianderson/iscutilities/configexporter"
+	"gitlab.com/easqrtech/iam/iscconfigexporter"
 	"os"
 	"testing"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	exporter "github.com/elianderson/iscutilities/configexporter"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"github.com/hashicorp/go-retryablehttp"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 	"github.com/spf13/viper"

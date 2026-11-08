@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	snapfmt "github.com/elianderson/iscutilities/configexporter/snapshot"
+	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 )
 
 // MappingAPI is independent of API: ordinary exporters need no mapping permissions.

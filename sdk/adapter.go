@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	exporter "github.com/elianderson/iscutilities/configexporter"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"github.com/hashicorp/go-retryablehttp"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 	beta "github.com/sailpoint-oss/golang-sdk/v2/api_beta"
