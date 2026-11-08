@@ -74,7 +74,7 @@ func TestLargeAndMultipleTypes(t *testing.T) {
 		}
 		fmt.Fprintf(&b, `{"version":1,"self":{"type":%q,"id":%q},"object":{"nested":{"futureField":[true,null,1]}}}`, typ, fmt.Sprintf("id-%d", i))
 	}
-	s, e := Organize("example", download(b.String()), snapshot(t, "").Manifest.Completed)
+	s, e := BuildSnapshot("example", download(b.String()), snapshot(t, "").Manifest.Completed)
 	if e != nil || len(s.Artifacts) != 3000 || s.Manifest.Counts["SOURCE"] != 1500 {
 		t.Fatal(len(s.Artifacts), e)
 	}

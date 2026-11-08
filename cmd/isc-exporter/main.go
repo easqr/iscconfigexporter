@@ -123,7 +123,7 @@ Options (use -help or -h to show this help):`)
 		return fmt.Errorf("cannot configure the ISC connection: %w", e)
 	}
 	if *retrieve {
-		timeout, e := exporter.Duration(c.Timeout)
+		timeout, e := exporter.ParseDuration(c.Timeout)
 		if e != nil {
 			return e
 		}

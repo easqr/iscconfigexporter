@@ -11,17 +11,30 @@ import (
 	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 )
 
-// MappingFileStore publishes an independent bundle to a NEW directory. Its parent
-// must be trusted private storage, as for FileStore. Existing bundles are retained.
-// ExportRoot optionally enforces separation from a configuration export tree.
-type MappingFileStore struct{ Directory, ExportRoot string }
+// MappingFileStore saves a mapping archive into a new directory. It never replaces
+// an existing archive. Parent storage must be private and support directory sync
+// and atomic rename, as for FileStore.
+type MappingFileStore struct {
+	// Directory is the destination, which must not already exist.
+	Directory string
+	// ExportRoot optionally rejects any overlap with the configuration export tree.
+	// Empty skips this protection; direct callers must then ensure separation.
+	ExportRoot string
+}
+
+// MappingPublication describes a saved mapping archive, not mapping values.
 type MappingPublication struct {
-	Directory  string            `json:"directory"`
+	// Directory is the absolute path of the saved archive.
+	Directory string `json:"directory"`
+	// Provenance matches the persisted provenance.json metadata.
 	Provenance MappingProvenance `json:"provenance"`
 }
 
-// ValidateMappingDestination performs read-only path checks before authentication
-// or retrieval. ExportRoot and the bundle must have disjoint directory trees.
+// ValidateMappingDestination checks a new archive path without creating files or
+// loading credentials. directory must not exist. If exportRoot is nonempty,
+// neither directory may contain the other, including through existing symlinks.
+// Empty exportRoot skips the overlap check. A successful check does not reserve
+// the destination or guarantee that later writes will succeed.
 func ValidateMappingDestination(directory, exportRoot string) error {
 	if directory == "" {
 		return errors.New("a mapping output directory is required")
@@ -78,6 +91,16 @@ func canonicalDestination(p string) (string, error) {
 		ancestor = parent
 	}
 }
+
+// Publish verifies mapping schema, checksum and provenance, copies the mapping
+// bytes and saves mappings.json plus provenance.json in a new directory. It checks
+// separation from ExportRoot when supplied and uses a cooperating-writer lock.
+// Callers must not mutate snap during the call.
+//
+// Failures before the final rename leave the destination unpublished. A failure
+// syncing the parent afterward returns the visible MappingPublication and an error;
+// verify the saved files before retrying. Cancellation racing with rename can still
+// publish. Old archives are never overwritten or pruned.
 func (s MappingFileStore) Publish(ctx context.Context, snap MappingSnapshot) (MappingPublication, error) {
 	var out MappingPublication
 	snap.Mappings = append(json.RawMessage(nil), snap.Mappings...)

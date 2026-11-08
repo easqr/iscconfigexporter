@@ -3,20 +3,30 @@ package sdk
 import (
 	"context"
 	"errors"
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	v2026 "github.com/sailpoint-oss/golang-sdk/v2/api_v2026"
+	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 )
 
-// Backups provides read-only inventory. No Configuration Hub DELETE is issued.
+// Backups provides read-only Configuration Hub inventory for an Adapter.
+// Obtain it with Adapter.Backups; the zero value is not usable. It implements
+// exporter.BackupAPI, but Delete always returns exporter.ErrOwnershipUnavailable.
+// Calls share the adapter's serialization and SDK authentication limits.
 type Backups struct {
 	adapter *Adapter
 	client  *v2026.APIClient
 	tenant  string
 }
 
+// Backups returns inventory bound to c.Tenant for local request checks. Other
+// policy fields are unused. It does not contact ISC or change the adapter's SDK
+// connection, and c.Tenant is not independently checked against the remote origin.
 func (a *Adapter) Backups(c exporter.Config) *Backups {
 	return &Backups{a, a.client.V2026, c.Tenant}
 }
+
+// List reads backup inventory and requires tenant to match the configured local
+// tenant. It does not infer exporter ownership. Missing completeness metadata is
+// treated as partial; missing permission is false and missing creation time is zero.
 func (b *Backups) List(ctx context.Context, tenant string) ([]exporter.Backup, error) {
 	if tenant != b.tenant {
 		return nil, errors.New("backup tenant mismatch")
@@ -43,6 +53,10 @@ func (b *Backups) List(ctx context.Context, tenant string) ([]exporter.Backup, e
 	}
 	return out, nil
 }
+
+// Get lists inventory and returns the unique matching backup ID. Missing or
+// duplicate IDs are errors. The lookup makes a remote inventory request and can
+// trigger SDK token acquisition.
 func (b *Backups) Get(ctx context.Context, tenant, id string) (exporter.Backup, error) {
 	v, e := b.List(ctx, tenant)
 	if e != nil {
@@ -63,6 +77,10 @@ func (b *Backups) Get(ctx context.Context, tenant, id string) (exporter.Backup, 
 	}
 	return *found, nil
 }
+
+// Delete always returns exporter.ErrOwnershipUnavailable without authentication
+// or an HTTP request, including when the context is canceled. A local registry
+// cannot enable it. Check the error with errors.Is(err, exporter.ErrOwnershipUnavailable).
 func (*Backups) Delete(context.Context, string, string) error {
 	return exporter.ErrOwnershipUnavailable
 }

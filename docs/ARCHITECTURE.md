@@ -4,7 +4,7 @@ This document describes component responsibilities and storage guarantees for li
 
 ## Components
 
-The root package owns Config, Engine, API, Store, Lifecycle, Registry and BackupAPI. The `snapshot` package owns Artifact, Changes, Manifest and Snapshot. SDK models remain exclusively in `sdk`; its optional NewWithConfiguration constructor accepts the native SDK configuration at that boundary. The CLI composes the library. No service or platform persistence assumptions are imposed.
+The root package owns Config, Engine, ExportAPI, Store, BackupLifecycle, Registry and BackupAPI. The `snapshot` package owns Artifact, Changes, Manifest and Snapshot. SDK models remain exclusively in `sdk`; its optional NewWithConfiguration constructor accepts the native SDK configuration at that boundary. The CLI composes the library. No service or platform persistence assumptions are imposed.
 
 Flow: discover exportable types → validate selection → initiate once → poll COMPLETE → download → validate every envelope → organize → publish → optional backup evaluation. A successful export is distinct from backup evaluation success.
 
@@ -12,7 +12,7 @@ Organization is pure. It requires matching tenant, selected types, nonempty stab
 
 IDs become `id-<UTF-8 hex>.json`, a reversible portable encoding that avoids colon substitution and case-fold collisions. Slash, backslash, control characters, dot identities and IDs over 100 bytes fail validation. Tenant/type names use restricted portable identifiers; device names are forbidden. Case-folded path collisions fail closed.
 
-The [snapshot reference](SNAPSHOTS.md) describes filenames, manifest fields and reader modes. Go consumers use `Manifest.Artifacts` (relative paths and SHA-256 checksums), `Counts`, `Types`, `JobID`, `Completed` and `Changes`. Artifacts contain the complete original object envelope; top-level download metadata remains operational input, not individual object content. Fetch and Organize may be used independently of filesystem publication.
+The [snapshot reference](SNAPSHOTS.md) describes filenames, manifest fields and reader modes. Go consumers use `Manifest.Artifacts` (relative paths and SHA-256 checksums), `Counts`, `Types`, `JobID`, `Completed` and `Changes`. Artifacts contain the complete original object envelope; top-level download metadata remains operational input, not individual object content. ExportAndDownload and BuildSnapshot may be used independently of filesystem publication.
 
 ## Filesystem publication
 

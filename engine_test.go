@@ -33,13 +33,13 @@ func (f *fakeAPI) Status(context.Context, string) (string, error) {
 	return s, nil
 }
 func (f *fakeAPI) Download(context.Context, string) (json.RawMessage, error) { return f.raw, nil }
-func TestFetch(t *testing.T) {
+func TestExportAndDownload(t *testing.T) {
 	for _, s := range []string{"COMPLETE", "FAILED", "CANCELLED", "FAILED_EXTERNAL_COMMUNICATION", "RUNNING", "PENDING", "BOGUS"} {
 		t.Run(s, func(t *testing.T) {
 			f := &fakeAPI{statuses: []string{s}}
 			c := testConfig()
 			c.Include = []string{"ROLE"}
-			out, e := (Engine{c, f}).Fetch(context.Background())
+			out, e := (Engine{c, f}).ExportAndDownload(context.Background())
 			if (s == "RUNNING" || s == "PENDING" || s == "FAILED_EXTERNAL_COMMUNICATION") && (e == nil || e.Error() != "unrecognized export job status") {
 				t.Fatalf("unexpected status accepted: %v", e)
 			}
@@ -52,22 +52,22 @@ func TestFetch(t *testing.T) {
 		})
 	}
 	f := &fakeAPI{err: errors.New("ambiguous start")}
-	_, e := (Engine{testConfig(), f}).Fetch(context.Background())
+	_, e := (Engine{testConfig(), f}).ExportAndDownload(context.Background())
 	if e == nil || f.starts != 1 {
 		t.Fatal(e, f.starts)
 	}
 }
-func TestFetchTimeoutCancel(t *testing.T) {
+func TestExportAndDownloadTimeoutCancel(t *testing.T) {
 	c := testConfig()
 	c.Timeout = "1ms"
 	f := &fakeAPI{statuses: []string{"NOT_STARTED"}}
-	_, e := (Engine{c, f}).Fetch(context.Background())
+	_, e := (Engine{c, f}).ExportAndDownload(context.Background())
 	if !errors.Is(e, context.DeadlineExceeded) {
 		t.Fatal(e)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, e = (Engine{testConfig(), f}).Fetch(ctx)
+	_, e = (Engine{testConfig(), f}).ExportAndDownload(ctx)
 	if !errors.Is(e, context.Canceled) {
 		t.Fatal(e)
 	}
@@ -83,7 +83,7 @@ func TestFilters(t *testing.T) {
 		c.Include = tc.include
 		c.Exclude = tc.exclude
 		f := &fakeAPI{}
-		_, e := (Engine{c, f}).Fetch(context.Background())
+		_, e := (Engine{c, f}).ExportAndDownload(context.Background())
 		if (e != nil) != tc.bad {
 			t.Fatal(tc, e)
 		}
@@ -97,11 +97,11 @@ func TestFilters(t *testing.T) {
 	}
 }
 
-func TestFetchPollingStatuses(t *testing.T) {
+func TestExportAndDownloadPollingStatuses(t *testing.T) {
 	c := testConfig()
 	c.PollInterval = "1ns"
 	f := &fakeAPI{statuses: []string{"NOT_STARTED", "IN_PROGRESS", "COMPLETE"}, raw: json.RawMessage(`{}`)}
-	if _, err := (Engine{c, f}).Fetch(context.Background()); err != nil {
+	if _, err := (Engine{c, f}).ExportAndDownload(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.statuses) != 1 || f.statuses[0] != "COMPLETE" || f.starts != 1 {

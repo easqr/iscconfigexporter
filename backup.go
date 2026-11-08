@@ -7,18 +7,34 @@ import (
 	"time"
 )
 
+// ErrOwnershipUnavailable indicates that backup ownership cannot be established
+// and deletion is unavailable. The SDK backup adapter returns it without an HTTP
+// DELETE request. Callers can test errors with errors.Is.
 var ErrOwnershipUnavailable = errors.New("backup deletion is unavailable: the SDK integration cannot verify which Configuration Hub backups belong to this exporter")
 
-// BackupManager is usable with platform-provided verified adapters. The shipped
-// SDK inventory has no destructive implementation or ownership verifier.
+// BackupManager evaluates retention and reports backup decisions after an export.
+// With the SDK inventory and no verifier it lists records, skips them and reports
+// an ownership limitation. Deletion is available only to custom integrations with
+// independent ownership verification and safe remote deletion guarantees.
 type BackupManager struct {
-	API      BackupAPI
+	// API supplies inventory and, for a verified custom integration, deletion.
+	API BackupAPI
+	// Registry supplies local creation evidence; nil prevents deletion.
 	Registry Registry
+	// Verifier checks current independent ownership evidence; nil prevents deletion.
 	Verifier OwnershipVerifier
-	Now      func() time.Time
+	// Now optionally supplies the evaluation clock. Nil uses time.Now in UTC.
+	Now func() time.Time
 }
 
-func (m BackupManager) Cleanup(ctx context.Context, tenant, operation string, c BackupConfig) (CleanupReport, error) {
+// Cleanup returns retention decisions for tenant according to c. Disabled policy
+// returns an empty report without API calls. Missing Registry or Verifier produces
+// skipped inventory records and a limitation, not a deletion or an error.
+// currentExportJobID is protected if it equals a candidate ID, but equality alone
+// never establishes ownership. Eligible custom-provider deletions require rechecks
+// and a surviving newest successful backup. DryRun reports would_delete decisions.
+// A returned error can accompany partial decisions; no export snapshot is changed.
+func (m BackupManager) Cleanup(ctx context.Context, tenant, currentExportJobID string, c BackupConfig) (CleanupReport, error) {
 	report := CleanupReport{}
 	if e := ctx.Err(); e != nil {
 		return report, e
@@ -35,7 +51,7 @@ func (m BackupManager) Cleanup(ctx context.Context, tenant, operation string, c 
 	age := time.Duration(0)
 	var e error
 	if c.Policy == "older_than" {
-		age, e = Duration(c.Age)
+		age, e = ParseDuration(c.Age)
 		if e != nil || age <= 0 {
 			return report, errors.New("invalid cleanup age")
 		}
@@ -130,7 +146,7 @@ func (m BackupManager) Cleanup(ctx context.Context, tenant, operation string, c 
 		switch {
 		case protected[id]:
 			reason = "latest successful exporter-owned backup"
-		case id == operation:
+		case id == currentExportJobID:
 			reason = "current export operation"
 		case !b.CanDelete:
 			reason = "API denies deletion"

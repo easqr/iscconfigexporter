@@ -12,9 +12,14 @@ import (
 
 func portable(s string) bool { return snapfmt.ValidateTypes([]string{s}) == nil }
 
-// Organize is pure: it validates the entire download before returning any artifacts.
-// Object array order is preserved; only object map keys are canonicalized.
-func Organize(tenant string, d Download, completed time.Time) (snapfmt.Snapshot, error) {
+// BuildSnapshot validates a downloaded export and builds in-memory object files
+// and manifest metadata without filesystem or network access. It checks tenant,
+// selected types, identities and positive integer envelope versions, preserves
+// unknown fields and numeric precision, and rejects duplicate identities or keys.
+// Object files are sorted by path; arrays inside each record retain their order.
+// JSON map keys are ordered. completed becomes the UTC manifest completion time.
+// FileStore.Publish computes changes relative to the previous saved snapshot.
+func BuildSnapshot(tenant string, d Download, completed time.Time) (snapfmt.Snapshot, error) {
 	var out snapfmt.Snapshot
 	if !portable(tenant) || d.JobID == "" {
 		return out, errors.New("invalid export identity")

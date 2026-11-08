@@ -13,7 +13,7 @@ import (
 
 func snapshot(t *testing.T, items string) snapfmt.Snapshot {
 	t.Helper()
-	s, e := Organize("example", download(items), time.Now())
+	s, e := BuildSnapshot("example", download(items), time.Now())
 	if e != nil {
 		t.Fatal(e)
 	}

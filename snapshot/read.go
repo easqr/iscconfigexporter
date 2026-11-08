@@ -13,37 +13,81 @@ import (
 	"strings"
 )
 
+// Mode selects how a reader interprets files and manifest metadata.
+// The empty value is invalid; readers never infer or change the requested mode.
 type Mode string
 
 const (
+	// SnapshotMode reads only manifest-listed files and verifies checksums and counts.
+	// A valid schema 1 manifest and envelope version 1 objects are required.
 	SnapshotMode Mode = "snapshot"
-	TreeMode     Mode = "tree"
+	// TreeMode inventories current object files, including edits, additions and
+	// deletions. A manifest supplies scope and historical metadata; without one,
+	// [Options.Types] must explicitly supply scope, even for an empty tree.
+	TreeMode Mode = "tree"
 )
 
+// Object is a validated configuration record from an Input.
 type Object struct {
-	Type, ID, Path string
-	Envelope       map[string]any
-}
-type Input struct {
-	files        map[string][]byte
-	options      Options
-	Mode         Mode     `json:"mode"`
-	Label        string   `json:"label"`
-	Environment  string   `json:"environment,omitempty"`
-	Manifest     Manifest `json:"manifest"`
-	ManifestHash string   `json:"manifest_hash,omitempty"`
-	ContentHash  string   `json:"content_hash"`
-	Objects      []Object `json:"-"`
-}
-type Options struct {
-	Mode               Mode
-	Label, Environment string
-	Types              []string
+	// Type is the exact self.type value and selected type directory.
+	Type string
+	// ID is self.id, before filename encoding.
+	ID string
+	// Path is the canonical relative object filename.
+	Path string
+	// Envelope is the complete JSON wrapper, including self and object. Numbers
+	// are json.Number and unknown fields survive. Do not mutate validated data.
+	Envelope map[string]any
 }
 
-// Read resolves the supplied root once, then pins the directory handle. It never
-// follows nested links. Concurrent edits to a configuration tree are rejected
-// when detected; callers must provide a quiescent tree for a coherent inventory.
+// Input is a validated in-memory view produced by [Read] or FromFiles.
+// Its zero value and manually assembled values are not valid reader inputs.
+// Keep its data and construction options unchanged when passing it to consumers
+// that revalidate with [Clone]; only Label and Environment may be changed freely.
+type Input struct {
+	files   map[string][]byte
+	options Options
+	// Mode is the explicit interpretation used to validate this input.
+	Mode Mode `json:"mode"`
+	// Label is a caller-selected display name, not tenant identity evidence.
+	Label string `json:"label"`
+	// Environment is an optional caller-selected environment label, not remote attestation.
+	Environment string `json:"environment,omitempty"`
+	// Manifest is the source export metadata. [TreeMode] retains historical counts
+	// and checksums; a manifest-free tree supplies only explicit type scope here.
+	Manifest Manifest `json:"manifest"`
+	// ManifestHash is the lowercase SHA-256 of original manifest bytes, or empty
+	// when no manifest was supplied. Unknown manifest metadata contributes to it.
+	ManifestHash string `json:"manifest_hash,omitempty"`
+	// ContentHash is a SHA-256 digest of sorted type scope and object path/checksum
+	// entries. It excludes labels and historical manifest metadata.
+	ContentHash string `json:"content_hash"`
+	// Objects is the validated current inventory, sorted by Path. It is omitted
+	// from JSON serialization and may differ from historical manifest counts in TreeMode.
+	Objects []Object `json:"-"`
+}
+
+// Options controls reader interpretation, scope and caller-supplied labels.
+// Mode is required. Keep Types unchanged after constructing an Input that will
+// later be reused or revalidated, because its construction options are retained.
+type Options struct {
+	// Mode must be [SnapshotMode] or TreeMode.
+	Mode Mode
+	// Label is a display name carried into the resulting Input.
+	Label string
+	// Environment is an optional logical environment label carried into Input.
+	Environment string
+	// Types supplies scope only for [TreeMode] without a manifest. A nonempty list
+	// with any manifest, or in [SnapshotMode], is an error. Names must pass ValidateTypes.
+	Types []string
+}
+
+// Read resolves root once, holds the directory open while reading and returns a
+// validated in-memory copy. No file handle remains open after it returns.
+// It follows root symlinks but rejects nested links or special files encountered
+// in the selected inventory. Keep a working tree unchanged while reading: detected
+// concurrent changes are errors, but the checks are not a filesystem transaction.
+// SnapshotMode requires a manifest; [TreeMode] without one requires Options.Types.
 func Read(root string, o Options) (Input, error) { return read(root, o, nil) }
 func read(root string, o Options, afterPin func()) (Input, error) {
 	var zero Input
@@ -250,6 +294,10 @@ func decodeManifest(b []byte, m *Manifest) error {
 	}
 	return nil
 }
+
+// ManagedPath reports whether p is an exact canonical relative object path.
+// It validates filename encoding and identity rules, without filesystem access
+// or checking the file contents or checksum.
 func ManagedPath(p string) bool {
 	parts := strings.Split(p, "/")
 	if len(parts) != 2 || !strings.HasPrefix(parts[1], "id-") || !strings.HasSuffix(parts[1], ".json") {
@@ -262,6 +310,11 @@ func ManagedPath(p string) bool {
 	expected, e := ObjectPath(parts[0], string(id))
 	return e == nil && expected == p
 }
+
+// ValidateTypes requires a nonempty list of portable type identifiers with no
+// duplicate names, including names that differ only by letter case. Names use
+// 1-100 ASCII letters, digits, hyphens or underscores, start with a letter or digit,
+// and exclude reserved device names. This does not query tenant-supported types.
 func ValidateTypes(types []string) error {
 	seen := map[string]bool{}
 	if len(types) == 0 {
@@ -277,8 +330,11 @@ func ValidateTypes(types []string) error {
 	return nil
 }
 
-// FromFiles copies and validates exporter-format bytes at the same boundary as Read.
-// In tree mode, manifest types define scope; without a manifest Types is required.
+// FromFiles copies and validates a map of relative file paths to bytes, using
+// the same modes and schema rules as [Read] without filesystem or link semantics.
+// Manifest scope is required in SnapshotMode. [TreeMode] without a manifest requires
+// Options.Types. Input file bytes are copied, and decoded objects are detached;
+// keep the construction options unchanged if the result will be revalidated.
 func FromFiles(files map[string][]byte, o Options) (Input, error) {
 	out := Input{Mode: o.Mode, Label: o.Label, Environment: o.Environment}
 	fail := func(s string) (Input, error) { return Input{}, errors.New(s) }
@@ -410,7 +466,11 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 	return out, nil
 }
 
-// Clone validates a detached in-memory Input; callers cannot bypass reader validation.
+// Clone revalidates an Input produced by [Read] or [FromFiles] and returns detached
+// file bytes, manifest data and objects. It rejects manually assembled inputs or
+// changes to validated objects, manifest, hashes or mode. Label and Environment
+// may be changed and are carried into the copy. Construction options are retained
+// and must remain unchanged; cloning does not read the filesystem or contact ISC.
 func Clone(in Input) (Input, error) {
 	if in.files == nil {
 		return Input{}, errors.New("construct inputs using Read or FromFiles")

@@ -10,8 +10,14 @@ import (
 
 // FileRegistry is a trusted local ledger, not independent proof of remote ownership.
 // Callers must record reliable creation evidence, never inferred names/requesters.
-type FileRegistry struct{ Path string }
+type FileRegistry struct {
+	// Path is a private JSON registry filename, not the export output directory.
+	Path string
+}
 
+// Records reads ownership claims for tenant. A missing file returns no records
+// and no error. It does not authenticate claims or contact the remote tenant.
+// ctx is checked before local file reading; the file read itself is not interruptible.
 func (r FileRegistry) Records(ctx context.Context, tenant string) ([]Ownership, error) {
 	if e := ctx.Err(); e != nil {
 		return nil, e
@@ -35,6 +41,12 @@ func (r FileRegistry) Records(ctx context.Context, tenant string) ([]Ownership, 
 	}
 	return out, nil
 }
+
+// Register appends complete creation evidence, refusing a duplicate tenant/backup
+// ID. It creates parent directories, locks cooperating writers and atomically
+// replaces the registry file after syncing. An error after replacement can leave
+// the new record visible; inspect the registry before retrying. Recording a claim
+// does not establish independent remote ownership or authorize deletion.
 func (r FileRegistry) Register(ctx context.Context, v Ownership) error {
 	if e := ctx.Err(); e != nil {
 		return e

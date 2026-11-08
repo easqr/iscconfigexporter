@@ -36,7 +36,7 @@ This record is written to `ROLE/id-616263313233.json`. Encoding preserves the ex
 
 Tenant and type names must follow the [identifier rules](CONFIGURATION.md#identifier-rules). Object IDs must contain 1–100 bytes and cannot contain `/`, `\`, control characters, or be exactly `.` or `..`. Duplicate object paths and paths that differ only by letter case are rejected.
 
-The export organizer accepts positive integer envelope versions. The Go snapshot reader described below currently supports envelope version `1` only.
+`exporter.BuildSnapshot` accepts positive integer envelope versions. The Go snapshot reader described below currently supports envelope version `1` only.
 
 ## Manifest
 

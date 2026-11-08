@@ -89,7 +89,7 @@ import (
 )
 
 func saveMappings(ctx context.Context, c exporter.Config, api exporter.MappingAPI) (exporter.MappingPublication, error) {
-    timeout, err := exporter.Duration(c.Timeout)
+    timeout, err := exporter.ParseDuration(c.Timeout)
     if err != nil {
         return exporter.MappingPublication{}, err
     }

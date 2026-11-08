@@ -2,28 +2,61 @@ package snapshot
 
 import "time"
 
+// Artifact describes an object file relative to its snapshot generation.
+// Data carries bytes for publication; it is omitted from serialized manifests.
 type Artifact struct {
-	Path   string `json:"path"`
+	// Path is the canonical TYPE/id-<lowercase UTF-8 hex ID>.json relative path.
+	Path string `json:"path"`
+	// SHA256 is the lowercase hexadecimal SHA-256 checksum of the exact file bytes.
 	SHA256 string `json:"sha256"`
-	Data   []byte `json:"-"`
+	// Data contains the full object envelope when preparing a snapshot for storage.
+	// A manifest decoded from disk contains metadata only and leaves Data nil.
+	Data []byte `json:"-"`
 }
+
+// Changes lists managed file paths relative to the previously published snapshot.
+// The store computes these lists during publication; empty categories may be nil.
 type Changes struct {
-	Created   []string `json:"created"`
-	Modified  []string `json:"modified"`
+	// Created lists newly managed paths.
+	Created []string `json:"created"`
+	// Modified lists prior paths whose file bytes changed.
+	Modified []string `json:"modified"`
+	// Unchanged lists paths with the same bytes as before.
 	Unchanged []string `json:"unchanged"`
-	Deleted   []string `json:"deleted"`
+	// Deleted lists prior managed paths absent from the new selection or export.
+	Deleted []string `json:"deleted"`
 }
+
+// Manifest describes an exported generation using schema 1. It is not a signature
+// or proof of remote job success. In TreeMode, its counts and artifact checksums
+// describe the source export, not the edited inventory in Input.Objects.
 type Manifest struct {
-	Schema    int            `json:"schema"`
-	Tenant    string         `json:"tenant"`
-	JobID     string         `json:"job_id"`
-	Completed time.Time      `json:"completed"`
-	Types     []string       `json:"types"`
-	Counts    map[string]int `json:"counts"`
-	Artifacts []Artifact     `json:"artifacts"`
-	Changes   Changes        `json:"changes"`
+	// Schema is the exporter storage format version, currently 1.
+	Schema int `json:"schema"`
+	// Tenant is the tenant identity checked against the export document.
+	Tenant string `json:"tenant"`
+	// JobID identifies the remote export job, not a verified backup association.
+	JobID string `json:"job_id"`
+	// Completed is the exporter-generated completion time, not an ISC object timestamp.
+	Completed time.Time `json:"completed"`
+	// Types is the selected scope, including types with zero objects.
+	Types []string `json:"types"`
+	// Counts maps every selected type to its nonnegative exported object count.
+	Counts map[string]int `json:"counts"`
+	// Artifacts lists object-file metadata. In a freshly built snapshot its Data
+	// fields can also be populated, but JSON serialization omits those bytes.
+	Artifacts []Artifact `json:"artifacts"`
+	// Changes describes publication relative to the previous current generation.
+	Changes Changes `json:"changes"`
 }
+
+// Snapshot is an in-memory export ready for publication by the root exporter package.
+// Build it with exporter.BuildSnapshot. The root FileStore validates consistency
+// between Manifest.Artifacts and Artifacts before writing any generation files.
 type Snapshot struct {
-	Manifest  Manifest
+	// Manifest contains matching artifact metadata, counts and export context.
+	Manifest Manifest
+	// Artifacts contains the complete files to publish, including Data. The same
+	// records must appear in Manifest.Artifacts with matching paths, checksums and data.
 	Artifacts []Artifact
 }

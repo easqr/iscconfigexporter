@@ -93,7 +93,7 @@ func exportConfiguration(ctx context.Context) (exporter.Result, error) {
 }
 ```
 
-Go applications can also supply SDK configuration with `sdk.NewWithConfiguration`, or use `Engine.Fetch` and `Organize` separately. See [architecture](docs/ARCHITECTURE.md) for component interfaces and extension points, and [snapshot files and readers](docs/SNAPSHOTS.md#go-readers) for reading snapshots without the SailPoint SDK.
+Go applications can also supply SDK configuration with `sdk.NewWithConfiguration`, or use `Engine.ExportAndDownload` and `BuildSnapshot` separately. See [architecture](docs/ARCHITECTURE.md) for component interfaces and extension points, and [snapshot files and readers](docs/SNAPSHOTS.md#go-readers) for reading snapshots without the SailPoint SDK.
 
 ## Optional mapping retrieval
 

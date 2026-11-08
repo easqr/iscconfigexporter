@@ -16,9 +16,13 @@ import (
 	"strings"
 )
 
-// FileStore publishes immutable generations through an atomic tenant symlink swap.
-// Output must be a trusted directory; readers should resolve the symlink once.
+// FileStore saves read-only snapshot generations and atomically switches the
+// tenant symbolic link to the new generation. Use private local POSIX storage
+// supporting symlinks, hardlinks, directory sync and atomic rename. Windows,
+// network filesystems and unrelated concurrent changes to the root are unsupported.
+// Cooperating writers are locked per tenant; old generations are not removed.
 type FileStore struct {
+	// Output is the private snapshot root directory, created if necessary.
 	Output       string
 	beforeCommit func() error
 }
@@ -35,7 +39,7 @@ func validateSnapshot(s snapfmt.Snapshot) error {
 		raw = append(raw, a.Data...)
 	}
 	raw = append(raw, ']', '}')
-	v, e := Organize(s.Manifest.Tenant, Download{s.Manifest.JobID, s.Manifest.Types, raw}, s.Manifest.Completed)
+	v, e := BuildSnapshot(s.Manifest.Tenant, Download{s.Manifest.JobID, s.Manifest.Types, raw}, s.Manifest.Completed)
 	if e != nil {
 		return e
 	}
@@ -74,6 +78,17 @@ func token() string {
 	}
 	return hex.EncodeToString(b)
 }
+
+// Publish validates snapshot, writes a complete generation and switches the tenant
+// link. The returned manifest includes changes relative to the previous snapshot.
+// Unchanged files are hardlinked; keep all generations read-only. Unmanaged regular
+// files are carried forward, while nested links, collisions and edited managed
+// files prevent publication.
+//
+// Failures before the link switch preserve the previous snapshot. A failure syncing
+// the parent directory after the switch returns the visible manifest and an error;
+// verify that generation before retrying. Cancellation racing with the switch can
+// still publish. Readers should resolve the current generation once per operation.
 func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.Manifest, error) {
 	var zero snapfmt.Manifest
 	if e := ctx.Err(); e != nil {
@@ -280,7 +295,11 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 	return m, nil
 }
 
-// CurrentPath resolves and pins a generation for coherent multi-file reads.
+// CurrentPath resolves output/tenant once and returns its filesystem path. Reuse
+// that path for a coherent multi-file read instead of resolving the tenant link
+// for each file. It does not keep a directory handle open, reserve the generation,
+// validate its manifest or prevent an operator from deleting it. Only tenant syntax
+// and filesystem path resolution are checked; snapshot.Read validates contents.
 func CurrentPath(output, tenant string) (string, error) {
 	if !portable(tenant) {
 		return "", errors.New("invalid tenant")

@@ -14,7 +14,7 @@ Authentication and token caching remain SDK responsibilities. One root `NewAPICl
 
 The SDK constructs and executes API requests. The adapter supplies its retryable HTTP client with the policy's retry count and backoff, a default API timeout, a GET-only transient-response retry policy and disabled API redirects. SDK `DefaultBackoff` handles exponential delays and `Retry-After`. Export initiation is never retried.
 
-`Engine` handles job polling. The pinned Go SDK exposes job status as a string, with no enum constants. The engine accepts the five [documented export states](https://developer.sailpoint.com/docs/tools/sdk/powershell/beta/models/sp-config-export-job-status/): `NOT_STARTED`, `IN_PROGRESS`, `COMPLETE`, `CANCELLED` and `FAILED`. Other values are errors.
+`Engine.ExportAndDownload` handles job creation, polling and download. The pinned Go SDK exposes job status as a string, with no enum constants. The engine accepts the five [documented export states](https://developer.sailpoint.com/docs/tools/sdk/powershell/beta/models/sp-config-export-job-status/): `NOT_STARTED`, `IN_PROGRESS`, `COMPLETE`, `CANCELLED` and `FAILED`. Other values are errors.
 
 The SDK restores raw response bytes after generated decoding. The export and mapping adapters read those bytes rather than reserializing generated models, preserving unknown fields and numeric precision. SDK decoder requirements still apply before the raw body is consumed. API errors with response bodies are sanitized.
 

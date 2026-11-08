@@ -13,7 +13,10 @@ import (
 	"unicode/utf8"
 )
 
-// DecodeJSON rejects duplicate keys instead of silently losing configuration data.
+// DecodeJSON decodes one UTF-8 JSON value, rejecting duplicate object keys and
+// trailing content. Objects become map[string]any, arrays become []any and numbers
+// remain json.Number to avoid floating-point precision loss. It does not enforce
+// the exporter envelope or manifest schema.
 func DecodeJSON(raw []byte) (any, error) {
 	if !utf8.Valid(raw) {
 		return nil, errors.New("invalid UTF-8 JSON")
@@ -71,6 +74,9 @@ func value(d *json.Decoder) (any, error) {
 	}
 	return t, nil
 }
+
+// Checksum returns the lowercase hexadecimal SHA-256 digest of b. It detects byte
+// changes when compared with trusted metadata; it does not establish authenticity.
 func Checksum(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
 func portable(s string) bool {
 	if !validComponent(s) {
@@ -83,6 +89,11 @@ func portable(s string) bool {
 	}
 	return true
 }
+
+// ObjectPath returns typ + "/id-<UTF-8 hex of id>.json" with lowercase hex digits.
+// typ must be a portable type identifier. id must contain 1-100 bytes, exclude
+// path separators and control characters, and not equal either "." or "..". The encoding is
+// reversible, not a hash; no filesystem access or filename creation occurs.
 func ObjectPath(typ, id string) (string, error) {
 	if !portable(typ) || id == "" || len(id) > 100 || id == "." || id == ".." || strings.ContainsAny(id, "/\\") || strings.IndexFunc(id, unicode.IsControl) >= 0 {
 		return "", errors.New("unsafe object identity")

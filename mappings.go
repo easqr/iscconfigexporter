@@ -13,51 +13,84 @@ import (
 	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 )
 
-// MappingAPI is independent of API: ordinary exporters need no mapping permissions.
-// Implementations return the original SDK response bytes, not reserialized models.
+// MappingAPI retrieves mapping responses from the authenticated target tenant.
+// It is separate from ExportAPI, so ordinary exports need no mapping permissions.
 type MappingAPI interface {
-	GetMappings(context.Context, string) (MappingDownload, error)
+	// GetMappings returns original response bytes and their actual HTTPS API origin.
+	// sourceOrg selects the source organization; default selects unassociated mappings.
+	// Implementations must preserve disabled records and unknown fields, and document
+	// any authentication work that cannot honor ctx.
+	GetMappings(ctx context.Context, sourceOrg string) (MappingDownload, error)
 }
+
+// MappingDownload is a raw mapping response and its request origin, before archive
+// provenance is added. It contains tenant configuration values and can be sensitive.
 type MappingDownload struct {
-	Data      json.RawMessage
+	// Data is the original JSON response array, not reserialized SDK models.
+	Data json.RawMessage
+	// APIOrigin is scheme://host[:port] for the actual request, without credentials,
+	// path or query. It is distinct from the operator-declared target tenant.
 	APIOrigin string
 }
 
-// MappingRequest describes an explicit read from the target/current organization.
-// ExportJobID is optional operator-supplied correlation, not a remote association.
+// MappingRequest selects mappings from the authenticated target organization.
+// TargetTenant is declared context, not a change to the adapter's SDK connection.
 type MappingRequest struct {
-	SourceOrg    string
+	// SourceOrg is a source organization identifier, or default for unassociated mappings.
+	SourceOrg string
+	// TargetTenant labels the target tenant in saved provenance. It is not remotely verified.
 	TargetTenant string
-	ExportJobID  string
+	// ExportJobID is optional operator-supplied correlation, not a verified association.
+	// It must be at most 256 bytes and contain no control characters.
+	ExportJobID string
 }
 
+// Validate checks identifiers and correlation syntax locally, without verifying
+// permissions, tenant identity, source existence or the recorded export job.
 func (r MappingRequest) Validate() error {
 	if !portable(r.SourceOrg) || !portable(r.TargetTenant) {
 		return errors.New("mapping source organization and target tenant must be valid tenant identifiers; see docs/MAPPINGS.md")
 	}
 	if len(r.ExportJobID) > 256 || strings.IndexFunc(r.ExportJobID, unicode.IsControl) >= 0 {
-		return errors.New("the recorded export job ID must be at most 256 characters with no control characters")
+		return errors.New("the recorded export job ID must be at most 256 bytes with no control characters")
 	}
 	return nil
 }
 
-// MappingProvenance binds saved bytes to their retrieval context. TargetTenant
-// is operator-declared; APIOrigin records the actual SDK request origin.
+// MappingProvenance records archive integrity and retrieval context. Its checksum
+// detects byte changes; the metadata does not authenticate the remote source or
+// prove that mappings and a configuration export were captured together.
 type MappingProvenance struct {
-	Schema       int       `json:"schema"`
-	RetrievalID  string    `json:"retrieval_id"`
-	SourceOrg    string    `json:"source_org"`
-	TargetTenant string    `json:"target_tenant"`
-	APIOrigin    string    `json:"api_origin"`
-	APIVersion   string    `json:"api_version"`
-	Endpoint     string    `json:"endpoint"`
-	Retrieved    time.Time `json:"retrieved"`
-	ExportJobID  string    `json:"export_job_id,omitempty"`
-	Count        int       `json:"count"`
-	SHA256       string    `json:"sha256"`
+	// Schema is the archive metadata format version, currently 1.
+	Schema int `json:"schema"`
+	// RetrievalID is a random local retrieval identifier, not a remote job ID.
+	RetrievalID string `json:"retrieval_id"`
+	// SourceOrg is the requested organization or default source group.
+	SourceOrg string `json:"source_org"`
+	// TargetTenant is operator-declared and not remotely verified.
+	TargetTenant string `json:"target_tenant"`
+	// APIOrigin records the actual HTTPS request origin without credentials or query.
+	APIOrigin string `json:"api_origin"`
+	// APIVersion identifies the SDK endpoint version, currently v2026.
+	APIVersion string `json:"api_version"`
+	// Endpoint is the mapping request path for SourceOrg.
+	Endpoint string `json:"endpoint"`
+	// Retrieved is the local retrieval-completion timestamp in UTC.
+	Retrieved time.Time `json:"retrieved"`
+	// ExportJobID is optional unverified operator-supplied export correlation.
+	ExportJobID string `json:"export_job_id,omitempty"`
+	// Count includes every returned record, including disabled mappings.
+	Count int `json:"count"`
+	// SHA256 is the lowercase hexadecimal checksum of exact mappings.json bytes.
+	SHA256 string `json:"sha256"`
 }
+
+// MappingSnapshot is a retrieved mapping array with checksum-bound provenance.
+// It is independent of an object snapshot and does not contain manifest.json.
 type MappingSnapshot struct {
-	Mappings   json.RawMessage
+	// Mappings is the original response array, including disabled and unknown fields.
+	Mappings json.RawMessage
+	// Provenance describes and checksums Mappings. Keep both unchanged before publication.
 	Provenance MappingProvenance
 }
 
@@ -69,8 +102,10 @@ func mappingOrigin(origin string) bool {
 	return e == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && u.RawQuery == "" && u.Fragment == "" && u.Path == ""
 }
 
-// ValidateMappings checks storage integrity without interpreting JSONPath or
-// applying substitutions. Unknown mapping fields and original bytes survive.
+// ValidateMappings checks the response-array schema and returns its total record
+// count, including disabled mappings. It rejects malformed or duplicate keys and
+// identities, but does not verify archive provenance or a checksum, interpret
+// JSONPath, or apply substitutions. Unknown fields are accepted; data is not changed.
 func ValidateMappings(data []byte) (int, error) {
 	v, e := snapfmt.DecodeJSON(data)
 	if e != nil {
@@ -111,8 +146,12 @@ func ValidateMappings(data []byte) (int, error) {
 	return len(items), nil
 }
 
-// RetrieveMappings reads once through MappingAPI. No export job, backup action,
-// tenant mutation or filesystem publication is performed here.
+// RetrieveMappings fetches mappings for the requested source group, copies the
+// response bytes, validates them and adds local retrieval provenance and a checksum.
+// The API determines the authenticated target; TargetTenant is a declared label.
+// It returns data in memory without writing files or starting an export or backup.
+// Use MappingFileStore.Publish to save it. Provider authentication can have separate
+// cancellation and timeout limits from ctx.
 func RetrieveMappings(ctx context.Context, api MappingAPI, r MappingRequest) (MappingSnapshot, error) {
 	var out MappingSnapshot
 	if e := r.Validate(); e != nil {

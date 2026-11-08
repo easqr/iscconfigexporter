@@ -1,4 +1,13 @@
-// Package sdk isolates all SailPoint-generated models and authentication.
+// Package sdk connects exporter workflows to SailPoint ISC using the official SDK.
+// Use New to load local connection settings or NewWithConfiguration to supply SDK
+// configuration. Adapter implements exporter.ExportAPI and exporter.MappingAPI;
+// its Backups method supplies read-only Configuration Hub inventory.
+//
+// Authentication happens on the first remote operation, not during construction.
+// SDK token requests use a separate HTTP client and are not controlled by the API
+// transport override, request context or API timeout. Cached tokens are not refreshed
+// by expiry. API errors omit response bodies and tenant payloads, although native
+// SDK token transport failures can print to standard output.
 package sdk
 
 import (
@@ -20,16 +29,22 @@ import (
 	"time"
 )
 
-// Adapter delegates API construction, authentication and HTTP retries
-// to the pinned SailPoint SDK. Its gate protects the SDK's mutable token caches.
+// Adapter provides remote export, mapping and backup-inventory operations.
+// Construct it with New or NewWithConfiguration; its zero value is not usable.
+// Calls sharing an adapter are serialized and can safely run from multiple
+// goroutines. Authentication and token caches are managed by the SDK; token
+// acquisition has the separate timeout and cancellation limits described above.
 type Adapter struct {
 	client *sailpoint.APIClient
 	gate   chan struct{}
 }
 
-// New loads SDK settings from SAIL_* or local config.json, without a home-directory
-// fallback. No authentication or network request occurs during construction.
-// transport is an optional API transport.
+// New validates c and loads SDK connection settings. A nonempty SAIL_BASE_URL
+// selects SAIL_* settings as a whole. Otherwise it selects exactly config.json
+// beside the executable, then in the working directory. A malformed selected file
+// is an error; missing fields are not merged from other sources.
+// Construction performs no authentication or remote request. A nil transport uses
+// the default API transport; an override applies to API calls, not token acquisition.
 func New(c exporter.Config, transport http.RoundTripper) (*Adapter, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -41,8 +56,14 @@ func New(c exporter.Config, transport http.RoundTripper) (*Adapter, error) {
 	return NewWithConfiguration(c, cfg, transport)
 }
 
-// NewWithConfiguration accepts native SDK configuration for embedded consumers.
-// The caller retains ownership: neither cfg nor its HTTP client is mutated.
+// NewWithConfiguration validates c and copies explicit native SDK configuration.
+// cfg must supply a trusted HTTPS BaseURL and a token or complete client credentials
+// with an HTTPS TokenURL. It does not load settings from files or the environment.
+// Neither cfg nor its HTTP client value is mutated. Referenced components such as
+// the configured transport remain shared unless overridden; nil transport preserves
+// the configured API transport. Overrides do not affect SDK token acquisition.
+// The adapter configures bounded GET retries and disables API redirects and SDK
+// debug logging. No authentication or remote request occurs during construction.
 func NewWithConfiguration(c exporter.Config, cfg *sailpoint.Configuration, transport http.RoundTripper) (*Adapter, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -89,7 +110,7 @@ func NewWithConfiguration(c exporter.Config, cfg *sailpoint.Configuration, trans
 	r.HTTPClient = h
 	r.Logger = nil
 	r.RetryMax = c.Retries
-	r.RetryWaitMin, _ = exporter.Duration(c.Backoff)
+	r.RetryWaitMin, _ = exporter.ParseDuration(c.Backoff)
 	r.RetryWaitMax = 30 * time.Second
 	if r.RetryWaitMin > r.RetryWaitMax {
 		r.RetryWaitMin = r.RetryWaitMax
@@ -211,6 +232,9 @@ func closeResponse(r *http.Response) {
 		_ = r.Body.Close()
 	}
 }
+
+// Discover returns the authenticated tenant's exportable type names. It makes a
+// remote read request and can trigger SDK token acquisition.
 func (a *Adapter) Discover(ctx context.Context) ([]string, error) {
 	if err := a.acquire(ctx); err != nil {
 		return nil, err
@@ -229,6 +253,9 @@ func (a *Adapter) Discover(ctx context.Context) ([]string, error) {
 	}
 	return out, nil
 }
+
+// Start creates one remote export job for types and returns its job ID. The request
+// is never retried automatically; an ambiguous error can still have created a job.
 func (a *Adapter) Start(ctx context.Context, types []string) (string, error) {
 	if err := a.acquire(ctx); err != nil {
 		return "", err
@@ -244,6 +271,9 @@ func (a *Adapter) Start(ctx context.Context, types []string) (string, error) {
 	}
 	return v.JobId, nil
 }
+
+// Status reads the requested job's status and checks that the returned job ID
+// matches. The value is the SDK status string; Engine rejects unrecognized states.
 func (a *Adapter) Status(ctx context.Context, id string) (string, error) {
 	if err := a.acquire(ctx); err != nil {
 		return "", err
@@ -262,6 +292,10 @@ func (a *Adapter) Status(ctx context.Context, id string) (string, error) {
 	}
 	return v.Status, nil
 }
+
+// Download returns the completed export's full JSON bytes, preserving unknown fields
+// and number precision. Poll for COMPLETE first. It does not validate the export
+// envelope; exporter.BuildSnapshot performs that validation before publication.
 func (a *Adapter) Download(ctx context.Context, id string) (json.RawMessage, error) {
 	if err := a.acquire(ctx); err != nil {
 		return nil, err
@@ -279,4 +313,4 @@ func (a *Adapter) Download(ctx context.Context, id string) (json.RawMessage, err
 	return b, nil
 }
 
-var _ exporter.API = (*Adapter)(nil)
+var _ exporter.ExportAPI = (*Adapter)(nil)

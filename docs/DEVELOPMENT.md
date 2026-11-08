@@ -26,6 +26,14 @@ git diff --check
 
 See the [SDK integration review](development/SDK_INTEGRATION.md#automated-verification) for coverage and the [live-tenant checklist](LIVE_VALIDATION.md) for operator checks. The owner has reported completing live verification; no individual live test results are recorded in this repository's checklist.
 
+GoDoc includes runnable offline examples for `Service.Export`, `RetrieveMappings`,
+`ParseDuration`, `snapshot.Read` and `snapshot.FromFiles`. They use local providers
+and temporary files, without SDK credentials or network access. Run them with:
+
+```sh
+go test -run '^Example' ./...
+```
+
 ## Dependency review
 
 When imports or dependency versions change, inspect the CLI's actual runtime modules:

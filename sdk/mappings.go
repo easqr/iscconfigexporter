@@ -9,8 +9,13 @@ import (
 	"gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 )
 
-// GetMappings uses the existing root SDK client, gate and GET retry policy.
-// Token caches remain managed by the SDK per API version.
+// GetMappings reads mappings between sourceOrg and the authenticated current
+// tenant. Use default for mappings not associated with a source organization.
+// The result includes original response bytes, disabled records, unknown fields
+// and the actual request origin, but no independently verified target-tenant label.
+// It validates response fields and can return an error from SDK schema decoding.
+// Calls are serialized with other operations on the adapter; SDK token requests
+// have separate context and transport limits.
 func (a *Adapter) GetMappings(ctx context.Context, sourceOrg string) (exporter.MappingDownload, error) {
 	var out exporter.MappingDownload
 	if e := snapshot.ValidateTypes([]string{sourceOrg}); e != nil {

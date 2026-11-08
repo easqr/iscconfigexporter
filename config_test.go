@@ -24,7 +24,7 @@ func TestConfig(t *testing.T) {
 	if _, e := LoadConfig(strings.NewReader(`{"secret":"x"}`)); e == nil {
 		t.Fatal("unknown field")
 	}
-	if d, e := Duration("7d"); e != nil || d.Hours() != 168 {
+	if d, e := ParseDuration("7d"); e != nil || d.Hours() != 168 {
 		t.Fatal(d, e)
 	}
 }

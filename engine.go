@@ -9,18 +9,32 @@ import (
 	"time"
 )
 
-// Engine orchestrates reads and a single non-retried export initiation.
+// Engine creates and downloads remote exports without organizing or saving files.
 type Engine struct {
+	// Config supplies type filters, timing and retry policy.
 	Config Config
-	API    API
-}
-type Download struct {
-	JobID string
-	Types []string
-	Raw   json.RawMessage
+	// API supplies remote export operations and is required.
+	API ExportAPI
 }
 
-func (e Engine) Fetch(ctx context.Context) (Download, error) {
+// Download contains the complete remote document and the job and type selection
+// needed by BuildSnapshot. Its zero value is not a valid completed export.
+type Download struct {
+	// JobID is the remote export job ID.
+	JobID string
+	// Types is the selected export scope, including types with no returned objects.
+	Types []string
+	// Raw is the full downloaded JSON document, including tenant and objects.
+	Raw json.RawMessage
+}
+
+// ExportAndDownload discovers types, applies filters, creates one job, polls
+// until COMPLETE and downloads its full JSON document. It does not write files.
+// Creation is not retried: a failure may still have created a remote job.
+// The returned Download can contain a job ID on a later failure, for inspection.
+// Context cancellation stops local work, not the remote job; provider authentication
+// can have separate cancellation limits. BuildSnapshot validates the downloaded data.
+func (e Engine) ExportAndDownload(ctx context.Context) (Download, error) {
 	var out Download
 	if err := e.Config.Validate(); err != nil {
 		return out, err
@@ -28,7 +42,7 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 	if e.API == nil {
 		return out, errors.New("API is required")
 	}
-	timeout, _ := Duration(e.Config.Timeout)
+	timeout, _ := ParseDuration(e.Config.Timeout)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	supported, err := e.API.Discover(ctx)
@@ -75,7 +89,7 @@ func (e Engine) Fetch(ctx context.Context) (Download, error) {
 		return out, errors.New("ISC returned no export job ID; inspect tenant export jobs before starting another export")
 	}
 	out.JobID = id
-	poll, _ := Duration(e.Config.PollInterval)
+	poll, _ := ParseDuration(e.Config.PollInterval)
 	for {
 		var status string
 		status, err = e.API.Status(ctx, id)
