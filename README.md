@@ -6,7 +6,7 @@ The tool exports configuration; it does not import or restore it, compare enviro
 
 ## Build and run
 
-Requires Go 1.27.2 or newer, network access to download build dependencies, and supported local storage. The exporter is tested on macOS; Windows and network filesystems are unsupported. See [storage requirements](docs/OPERATIONS.md#snapshot-storage).
+Requires Go 1.27.3 or newer, network access to download build dependencies, and supported local storage. The exporter is tested on macOS; Windows and network filesystems are unsupported. See [storage requirements](docs/OPERATIONS.md#snapshot-storage).
 
 Run these steps from the repository root:
 

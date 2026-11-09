@@ -1,6 +1,6 @@
 module gitlab.com/easqrtech/iam/iscconfigexporter
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8

@@ -4,6 +4,8 @@ This guide is for contributors. For building and using the exporter, start with 
 
 ## Local checks
 
+Use Go 1.27.3 or newer, including for release builds. Go 1.27.3 fixes the certificate-validation vulnerability [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809). Check `go version` before building; updating `go.mod` does not patch an already built binary.
+
 Run from the repository root:
 
 ```sh
