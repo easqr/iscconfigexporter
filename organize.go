@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/internal/envelope"
 	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
 	"sort"
 	"strings"
@@ -14,7 +15,7 @@ func portable(s string) bool { return snapfmt.ValidateTypes([]string{s}) == nil 
 
 // BuildSnapshot validates a downloaded export and builds in-memory object files
 // and manifest metadata without filesystem or network access. It checks tenant,
-// selected types, identities and positive integer envelope versions, preserves
+// selected types, matching self/payload identities and envelope version 1, preserves
 // unknown fields and numeric precision, and rejects duplicate identities or keys.
 // Object files are sorted by path; arrays inside each record retain their order.
 // JSON map keys are ordered. completed becomes the UTC manifest completion time.
@@ -62,22 +63,9 @@ func BuildSnapshot(tenant string, d Download, completed time.Time) (snapfmt.Snap
 		if !ok {
 			return snapfmt.Snapshot{}, errors.New("an exported configuration record must be a JSON object")
 		}
-		self, ok := obj["self"].(map[string]any)
-		if !ok {
-			return snapfmt.Snapshot{}, errors.New("an exported record is missing its self metadata")
-		}
-		typ, _ := self["type"].(string)
-		id, _ := self["id"].(string)
-		ver, ok := obj["version"].(json.Number)
-		if !ok {
-			return snapfmt.Snapshot{}, errors.New("an exported record is missing its numeric version")
-		}
-		n, e := ver.Int64()
-		if e != nil || n < 1 {
-			return snapfmt.Snapshot{}, errors.New("an exported record must have a positive integer version")
-		}
-		if _, ok := obj["object"].(map[string]any); !ok {
-			return snapfmt.Snapshot{}, errors.New("an exported record is missing its object payload")
+		typ, id, e := envelope.Validate(obj)
+		if e != nil {
+			return snapfmt.Snapshot{}, fmt.Errorf("invalid exported record: %w", e)
 		}
 		if !selected[typ] {
 			return snapfmt.Snapshot{}, errors.New("downloaded export contains a type outside the requested selection")

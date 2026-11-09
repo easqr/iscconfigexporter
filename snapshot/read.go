@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/internal/envelope"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -412,26 +413,13 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 		if !ok {
 			return fail("invalid envelope")
 		}
-		ver, ok := env["version"].(json.Number)
-		if !ok || ver.String() != "1" {
-			return fail("unsupported envelope version")
-		}
-		self, ok := env["self"].(map[string]any)
-		if !ok {
-			return fail("missing self metadata")
-		}
-		typ, _ := self["type"].(string)
-		id, _ := self["id"].(string)
-		payload, ok := env["object"].(map[string]any)
-		if !ok {
-			return fail("missing object payload")
+		typ, id, e := envelope.Validate(env)
+		if e != nil {
+			return Input{}, e
 		}
 		expected, e := ObjectPath(typ, id)
 		if e != nil || expected != p || !selected[typ] {
 			return fail("type, path, identity or scope mismatch")
-		}
-		if pid, ok := payload["id"]; ok && pid != id {
-			return fail("conflicting payload identity")
 		}
 		key := strings.ToLower(p)
 		if seen[key] {
