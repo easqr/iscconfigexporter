@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
-	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
 )
 
 type mappingTransport func(*http.Request) (*http.Response, error)
