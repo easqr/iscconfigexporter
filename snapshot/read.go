@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"gitlab.com/easqrtech/iam/iscconfigexporter/internal/envelope"
+	"github.com/easqr/iscconfigexporter/internal/envelope"
 	"io/fs"
 	"os"
 	"path/filepath"

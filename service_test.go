@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 )
 
 type failingExportAPI struct {

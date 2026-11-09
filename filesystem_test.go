@@ -3,7 +3,7 @@ package exporter
 import (
 	"context"
 	"errors"
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 	"os"
 	"path/filepath"
 	"strings"

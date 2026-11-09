@@ -3,8 +3,8 @@ package sdk
 import (
 	"context"
 	"errors"
+	exporter "github.com/easqr/iscconfigexporter"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"io"
 	"net/http"
 	"os"

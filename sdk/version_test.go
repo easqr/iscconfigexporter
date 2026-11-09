@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	exporter "github.com/easqr/iscconfigexporter"
+	"github.com/easqr/iscconfigexporter/internal/buildinfo"
 	sailpoint "github.com/sailpoint-oss/golang-sdk/v2"
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
-	"gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo"
 )
 
 func TestSDKConsumerBuildIdentity(t *testing.T) {

@@ -4,7 +4,7 @@ GOVULNCHECK_VERSION := v1.9.0
 TEST_TIMEOUT ?= 5m
 VERSION ?=
 BUILD_OUTPUT ?= isc-exporter
-BUILD_LDFLAGS = -X gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo.releaseVersion=$(VERSION)
+BUILD_LDFLAGS = -X github.com/easqr/iscconfigexporter/internal/buildinfo.releaseVersion=$(VERSION)
 
 export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 export GOFLAGS := $(GOFLAGS) -mod=readonly

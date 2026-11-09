@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 )
 
 // MappingFileStore saves a mapping archive into a new directory. It never replaces

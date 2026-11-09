@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 )
 
 // ExportAPI provides the remote operations used by Engine.ExportAndDownload.

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	"github.com/easqr/iscconfigexporter/snapshot"
 )
 
 // This example writes a small empty snapshot to demonstrate reading a saved export.

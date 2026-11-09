@@ -2,7 +2,7 @@ package exporter
 
 import (
 	"encoding/json"
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 	"reflect"
 	"strings"
 	"testing"

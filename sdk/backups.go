@@ -3,8 +3,8 @@ package sdk
 import (
 	"context"
 	"errors"
+	exporter "github.com/easqr/iscconfigexporter"
 	v2026 "github.com/sailpoint-oss/golang-sdk/v2/api_v2026"
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 )
 
 // Backups provides read-only Configuration Hub inventory for an Adapter.

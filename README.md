@@ -67,7 +67,9 @@ Keep snapshot files read-only; use a separate copy if you need to edit configura
 
 ## Library usage
 
-Module path: `gitlab.com/easqrtech/iam/iscconfigexporter`. The following function uses SDK connection settings configured as above and returns the export result or an error:
+Module path: `github.com/easqr/iscconfigexporter`. The repository moved from GitLab; update existing imports to this path. Tags `v0.6.0` and `v0.7.0` retain their original GitLab module path. Until a new release is tagged, use `go get github.com/easqr/iscconfigexporter@main` for the migrated module.
+
+The following function uses SDK connection settings configured as above and returns the export result or an error:
 
 ```go
 package example
@@ -75,8 +77,8 @@ package example
 import (
     "context"
 
-    exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
-    "gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
+    exporter "github.com/easqr/iscconfigexporter"
+    "github.com/easqr/iscconfigexporter/sdk"
 )
 
 func exportConfiguration(ctx context.Context) (exporter.Result, error) {

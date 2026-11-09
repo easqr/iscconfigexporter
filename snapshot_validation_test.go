@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 )
 
 func TestEnvelopeValidationAcrossPublicationAndReading(t *testing.T) {

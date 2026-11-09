@@ -57,7 +57,7 @@ A checksum lets a reader check whether file bytes match the manifest; it does no
 
 ## Go readers
 
-The `gitlab.com/easqrtech/iam/iscconfigexporter/snapshot` package depends only on the Go standard library. It owns `Artifact`, `Changes`, `Manifest` and `Snapshot`, and provides decoding, checksum, path and reader functions.
+The `github.com/easqr/iscconfigexporter/snapshot` package depends only on the Go standard library. It owns `Artifact`, `Changes`, `Manifest` and `Snapshot`, and provides decoding, checksum, path and reader functions.
 
 Use `snapshot.Read(path, options)` to read from disk, or `snapshot.FromFiles(files, options)` to validate a map of relative filenames to bytes. Choose an explicit mode:
 

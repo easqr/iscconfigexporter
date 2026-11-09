@@ -1,4 +1,4 @@
-module gitlab.com/easqrtech/iam/iscconfigexporter
+module github.com/easqr/iscconfigexporter
 
 go 1.27.3
 

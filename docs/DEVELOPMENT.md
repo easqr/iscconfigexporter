@@ -58,7 +58,7 @@ make release-build VERSION=v0.7.0
 
 The target rejects missing or mismatched tags and modified or untracked files, runs release checks, and then builds the binary. It does not create, move or publish tags. `BUILD_OUTPUT` selects another output path, such as a temporary directory. For an ordinary local build, use `make build`; `make build VERSION=v0.7.0` injects a version without release enforcement and is useful only for testing build identification.
 
-The linker setting is `-X gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo.releaseVersion=v0.7.0`. Without it, the exporter uses its embedded module version when available. VCS commit and modification state describe this module only when it is the main module. Builds made with VCS stamping disabled can still report their version, with unknown VCS fields.
+The linker setting is `-X github.com/easqr/iscconfigexporter/internal/buildinfo.releaseVersion=v0.7.0`. Without it, the exporter uses its embedded module version when available. VCS commit and modification state describe this module only when it is the main module. Builds made with VCS stamping disabled can still report their version, with unknown VCS fields.
 
 SDK requests retain consumer identifier `isc-config-exporter`. A clean release uses consumer version `0.7.0`; development builds with a known commit use a shortened revision, for example `development+79976eb12345.dirty`. Modified builds carry a dirty marker. When imported as a library, the consumer version comes from the exporter dependency's module version, not the host application's version or commit. Replaced exporter dependencies report `development` because their original module version may not identify the code actually built.
 

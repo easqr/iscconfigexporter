@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode"
 
-	snapfmt "gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 )
 
 // MappingAPI retrieves mapping responses from the authenticated target tenant.

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const modulePath = "gitlab.com/easqrtech/iam/iscconfigexporter"
+const modulePath = "github.com/easqr/iscconfigexporter"
 
 // releaseVersion is set by release builds using the Go linker's -X flag.
 var releaseVersion string

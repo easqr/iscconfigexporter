@@ -11,7 +11,7 @@
 // For separate workflow stages, [Engine.ExportAndDownload] creates and downloads
 // a remote export job, and [BuildSnapshot] validates and organizes its records
 // without writing files. Snapshot models and SDK-free readers live in the
-// gitlab.com/easqrtech/iam/iscconfigexporter/snapshot package.
+// github.com/easqr/iscconfigexporter/snapshot package.
 //
 // SDK connection settings are separate from [Config], which contains export policy
 // only. The supplied SDK backup integration provides read-only inventory; custom

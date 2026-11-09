@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
-	"gitlab.com/easqrtech/iam/iscconfigexporter/snapshot"
+	exporter "github.com/easqr/iscconfigexporter"
+	"github.com/easqr/iscconfigexporter/snapshot"
 )
 
 // GetMappings reads mappings between sourceOrg and the authenticated current

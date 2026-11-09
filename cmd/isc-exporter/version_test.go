@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
-	"gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
+	exporter "github.com/easqr/iscconfigexporter"
+	"github.com/easqr/iscconfigexporter/sdk"
 )
 
 func TestVersionWithoutConfiguration(t *testing.T) {

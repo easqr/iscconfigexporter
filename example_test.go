@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+	exporter "github.com/easqr/iscconfigexporter"
 )
 
 // This example uses a local provider so it can run without tenant credentials.

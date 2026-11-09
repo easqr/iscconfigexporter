@@ -85,7 +85,7 @@ package example
 import (
     "context"
 
-    exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+    exporter "github.com/easqr/iscconfigexporter"
 )
 
 func saveMappings(ctx context.Context, c exporter.Config, api exporter.MappingAPI) (exporter.MappingPublication, error) {
