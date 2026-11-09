@@ -1,23 +1,27 @@
 # Documentation
 
-Start with the [project README](../README.md) for purpose, build instructions and a first export.
+New to the exporter? Follow the [first-export walkthrough](../README.md#build-and-run)
+or [use the Go library](LIBRARY.md).
 
-## Usage and operations
+## Find the right guide
 
-- [Configuration](CONFIGURATION.md): exporter policy, SDK connection settings, authentication limits and retries.
-- [Operations and troubleshooting](OPERATIONS.md): results, common errors, interrupted exports, locks and local rollback.
-- [Snapshot files and readers](SNAPSHOTS.md): filenames, manifest fields, saved versions and Go reader modes.
-- [Mapping retrieval](MAPPINGS.md): optional CLI and library usage, archive format and differ handoff.
-- [Live-tenant validation](LIVE_VALIDATION.md): checklist for repeat operator verification.
+| I want to… | Read |
+| --- | --- |
+| Choose export types, set credentials, or change timing | [Configuration](CONFIGURATION.md) |
+| Understand a result or resolve a failed export | [Operations and troubleshooting](OPERATIONS.md) |
+| Understand the files or read them from Go | [Snapshot files and readers](SNAPSHOTS.md) |
+| Call the exporter from my application | [Go library guide](LIBRARY.md) |
+| Retrieve Configuration Hub mappings | [Mapping retrieval](MAPPINGS.md) |
+| Check behavior against a nonproduction tenant | [Live-tenant checklist](LIVE_VALIDATION.md) |
 
-## Technical review
+## Technical references
 
-- [Architecture](ARCHITECTURE.md): component responsibilities, artifact organization and publication guarantees.
-- [API capabilities and limits](API.md): pinned SDK integration, backup ownership and deletion restrictions.
-- [Dependencies and licenses](DEPENDENCIES.md): runtime inventory and retained notices.
+- [Architecture](ARCHITECTURE.md): component responsibilities and storage guarantees.
+- [API capabilities and limits](API.md): the pinned SDK, supported calls, and backup ownership limits.
+- [Dependencies and licenses](DEPENDENCIES.md): runtime dependencies and retained notices.
 
-## Development
+## Contributors
 
-- [Developer guide](DEVELOPMENT.md): local checks and dependency review.
-- [SDK integration review](development/SDK_INTEGRATION.md): implementation details and automated verification.
-- [Development history](development/HISTORY.md): historical commit and change index.
+- [Developer guide](DEVELOPMENT.md): local checks, release builds, and dependency review.
+- [SDK integration review](development/SDK_INTEGRATION.md): adapter details and automated test coverage.
+- [Development history](development/HISTORY.md): historical changes.

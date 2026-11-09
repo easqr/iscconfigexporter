@@ -1,5 +1,6 @@
 # Configuration reference
 
+Use this reference after the [first-export walkthrough](../README.md#build-and-run).
 The exporter uses two separate configuration files:
 
 | File | Purpose | Contains credentials? |
@@ -11,7 +12,9 @@ Copy `exporter.example.json` to `exporter.json` and edit it for your tenant. Exp
 
 ## Exporter policy
 
-Defaults below apply to omitted fields. The example file explicitly sets `backup.dry_run` to `true` and `backup.registry` to `ownership.json`.
+Exporter policy means the export settings in `exporter.json`. The fields below
+control what is exported and where it is saved. Defaults apply to omitted fields.
+The example file explicitly sets `backup.dry_run` to `true` and `backup.registry` to `ownership.json`.
 
 | Field | Default | Constraint/meaning |
 |---|---|---|
@@ -31,6 +34,24 @@ Defaults below apply to omitted fields. The example file explicitly sets `backup
 | backup.registry | empty | Optional path to local ownership records for a custom integration; records alone do not enable deletion |
 
 `backup.enabled=true` requires `backup.policy` to be `older_than` or `keep_latest`. You can configure a policy while leaving evaluation disabled, but its fields must still be valid. Type filters are checked against the tenant when an export runs; local validation cannot verify which types it supports. If the filters leave no types selected, no export job is started. Durations accept Go units such as `30s` and `10m`, plus positive whole days such as `7d`.
+
+### Choose export types
+
+Set `include` to a list of type names to export only those types:
+
+```json
+{
+  "tenant": "example",
+  "output": "exports",
+  "include": ["ROLE", "SOURCE"]
+}
+```
+
+Replace `example` with your tenant's identity. Type names must be supported by
+that tenant. Use `"include": []` to start with all discovered types, and use
+`exclude` to remove selected types. Do not put the same type in both lists.
+Changing filters replaces the current snapshot's managed inventory; previously
+saved generations remain on disk.
 
 ## Identifier rules
 
@@ -52,11 +73,17 @@ Use an existing SDK `config.json`, or create it manually with the following fiel
 }
 ```
 
-This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. The adapter also accepts the SDK environment variables SAIL_BASE_URL, SAIL_CLIENT_ID and SAIL_CLIENT_SECRET as an optional alternative.
+This file contains secrets and is ignored by Git. The exporter never creates or rewrites it. Protect it with local filesystem permissions. As an alternative to the file, supply these SDK environment variables:
+
+| Variable | Value |
+| --- | --- |
+| `SAIL_BASE_URL` | Your tenant's HTTPS API URL |
+| `SAIL_CLIENT_ID` | SDK client ID |
+| `SAIL_CLIENT_SECRET` | SDK client secret |
 
 Connection lookup order:
 
-1. If SAIL_BASE_URL is set, use the SAIL_* environment configuration as a whole (it does not merge missing credentials from files).
+1. If `SAIL_BASE_URL` is set, use the `SAIL_*` environment configuration as a whole (it does not merge missing credentials from files).
 2. Otherwise look for exactly `config.json` beside the executable, then in the working directory. Other filenames and extensions are ignored. A malformed or unreadable selected file returns an error rather than falling through to another file.
 3. Otherwise return a configuration error. Home-directory configuration is not read.
 

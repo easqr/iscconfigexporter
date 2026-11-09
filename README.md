@@ -1,54 +1,126 @@
 # ISC Configuration Exporter
 
-A Go module and command-line tool for exporting SailPoint Identity Security Cloud (ISC) configuration to local snapshots. Each snapshot contains the exported configuration files and a manifest describing them. It uses the official SailPoint Go SDK and supports optional read-only backup evaluation. The supplied integration cannot delete backups; see [API capabilities and limits](docs/API.md).
+Export SailPoint Identity Security Cloud (ISC) configuration to local files using
+the official SailPoint Go SDK. Each export saves the configuration objects and a
+`manifest.json` containing their types, counts, and checksums. You can run the
+command-line tool or use the Go module in your own application.
 
-The tool exports configuration; it does not import or restore it, compare environments, schedule exports, or publish them to Git or remote storage.
+Start with [your first export](#build-and-run) below. To integrate the module into
+an application, go to [Go library usage](#library-usage).
+
+## Before you start
+
+You will need:
+
+- Go **1.27.3 or newer** and Git to build from source.
+- Network access to download dependencies and connect to your ISC tenant.
+- Your tenant's API URL and SDK client credentials with permission to export
+  configuration (`sp:config:read`). Confirm the required tenant role with your administrator.
+- Private local storage for the exported configuration. The exporter is tested
+  on macOS; Windows and network filesystems are unsupported. See
+  [storage requirements](docs/OPERATIONS.md#snapshot-storage).
+
+Exports can contain secrets. Choose storage that only authorized users can
+access. Exported values are saved without redaction or encryption.
 
 ## Build and run
 
-Requires Go 1.27.3 or newer, network access to download build dependencies, and supported local storage. The exporter is tested on macOS; Windows and network filesystems are unsupported. See [storage requirements](docs/OPERATIONS.md#snapshot-storage).
+### 1. Get the source and build
 
-Run these steps from the repository root:
+Clone the v0.8.0 release and build the command-line tool:
 
-1. Build the command-line tool:
+```sh
+git clone --branch v0.8.0 https://github.com/easqr/iscconfigexporter.git
+cd iscconfigexporter
+go build -o isc-exporter ./cmd/isc-exporter
+```
 
-   ```sh
-   go build -o isc-exporter ./cmd/isc-exporter
-   ```
+If you already have a checkout, run the build command from its root directory.
+Run the remaining commands from that same directory so the tool can find your
+configuration files.
 
-2. Create the exporter policy:
+### 2. Choose what to export
 
-   ```sh
-   cp exporter.example.json exporter.json
-   ```
+Create an exporter settings file:
 
-   Edit `exporter.json` to set your tenant, output directory and type filters. See the [configuration reference](docs/CONFIGURATION.md) for policy fields.
+```sh
+cp exporter.example.json exporter.json
+```
 
-3. Configure the SDK connection and credentials in a separate `config.json`, or use `SAIL_*` environment variables. Follow [SDK connection setup](docs/CONFIGURATION.md#native-sdk-connection-and-authentication). `exporter.json` does not contain credentials.
+Edit `exporter.json`. For a first export, you can use these settings:
 
-4. Check the local policy and options:
+```json
+{
+  "tenant": "example",
+  "output": "exports",
+  "include": ["ROLE", "SOURCE"]
+}
+```
 
-   ```sh
-   ./isc-exporter -config exporter.json -validate
-   ```
+Replace `example` with your tenant's identity, matching the tenant returned in
+exports. This example exports roles and sources; both types must be supported
+by your tenant. To export all available types, use `"include": []`.
+Backup evaluation is disabled when omitted. Other settings use their defaults;
+see the [configuration reference](docs/CONFIGURATION.md#exporter-policy).
 
-   Expect `configuration valid`. This check does not load credentials, contact ISC, or verify API access.
+`output` is relative to the directory where you run the command. With the
+settings above, the current snapshot will be available at `exports/example`.
 
-5. Run an export:
+### 3. Configure the connection
 
-   ```sh
-   ./isc-exporter -config exporter.json
-   ```
+Create a separate file named exactly `config.json` in the same directory:
 
-   A successful export writes a JSON result to standard output and saves a snapshot under the configured output directory. With tenant `example` and the default output directory, look for `exports/example/manifest.json`. See [results and errors](docs/OPERATIONS.md#results-and-errors) for a sample result and exit-status behavior.
+```json
+{
+  "ClientId": "<client-id>",
+  "ClientSecret": "<client-secret>",
+  "BaseURL": "https://<tenant>.api.identitynow.com"
+}
+```
 
-Use `./isc-exporter -help` for command-line options. Backup evaluation is disabled by default. `-cleanup-preview` evaluates an enabled backup policy after exporting; it still creates a remote export job and saves a local snapshot. See [backup evaluation](docs/CONFIGURATION.md#backup-evaluation).
+Replace all three placeholders with your SDK connection settings. Confirm that
+the API URL and the tenant in `exporter.json` refer to the tenant you intend to
+export. Keep credentials in `config.json`, separate from `exporter.json`.
+Protect the credentials file:
 
-Run `./isc-exporter -version` to see the exporter version, full commit ID, checkout modification state, Go version and platform. This command needs no configuration or credentials. Unavailable commit or modification information is shown as `unknown`.
+```sh
+chmod 600 config.json
+```
 
-Ctrl+C or SIGTERM requests cancellation. See [authentication limits](docs/CONFIGURATION.md#authentication-limits) for token requests that cannot be interrupted.
+The repository ignores `config.json` in Git. If `SAIL_BASE_URL` is set, the tool
+uses the `SAIL_*` environment settings as a whole instead of this file. See
+[connection lookup and environment variables](docs/CONFIGURATION.md#native-sdk-connection-and-authentication).
+
+### 4. Validate settings and run
+
+Check the local settings first:
+
+```sh
+./isc-exporter -config exporter.json -validate
+```
+
+Expect `configuration valid`. This checks settings and options without loading
+credentials or contacting ISC; it does not confirm authentication or permissions.
+
+Run the export:
+
+```sh
+./isc-exporter -config exporter.json
+```
+
+The tool starts an ISC export job, waits for it to complete, and saves the
+snapshot. Success produces a JSON result in the terminal and an exit status of
+`0`. Look for `exports/example/manifest.json`, replacing `example` with your
+tenant. If the export fails, start with [troubleshooting](docs/OPERATIONS.md#troubleshooting).
+
+Use `./isc-exporter -help` for options and `./isc-exporter -version` for build
+information. Neither requires credentials. Ctrl+C requests cancellation; it does
+not cancel the remote ISC job. SDK token acquisition has separate
+[timeout and cancellation limits](docs/CONFIGURATION.md#authentication-limits).
 
 ## Output
+
+With the example settings, a successful export produces:
 
 ```text
 exports/
@@ -59,66 +131,63 @@ exports/
     manifest.json
 ```
 
-`exports/example` is a symbolic link to the latest saved snapshot. Each object file contains its exported configuration record, including the original metadata and any unknown fields. Filenames encode the record's ID; the original ID and name remain readable inside the JSON.
+Each object file contains the configuration and its original metadata. Filenames
+encode the object's ID; the ID and name are readable inside the JSON. The
+manifest lists selected types, object counts, file checksums, and paths created,
+modified, unchanged, or deleted since the previous export. Types with no objects
+have no object files.
 
-The manifest lists exported types, object counts, file checksums and changed paths. Type filters determine which types appear in the current snapshot. Unchanged files retain their modification times, and older snapshot directories remain on disk for recovery.
+`exports/example` is a symbolic link to the latest saved snapshot. Rerunning the
+command saves a new version and updates that link after the files are ready.
+Older versions remain on disk. Changing type filters changes which objects
+appear in the current snapshot.
 
-Keep snapshot files read-only; use a separate copy if you need to edit configuration. For filename rules, manifest fields and Go reader modes, see [snapshot files and readers](docs/SNAPSHOTS.md). For disk management and recovery, see [operations](docs/OPERATIONS.md).
+Keep saved snapshots read-only. Unchanged files can share storage with older
+versions, so editing one can alter several saved exports. Make a separate copy
+before editing. See [snapshot files and readers](docs/SNAPSHOTS.md) for file
+formats, and [storage and recovery](docs/OPERATIONS.md#snapshot-storage) for
+managing saved versions.
 
 ## Library usage
 
-Module path: `github.com/easqr/iscconfigexporter`. Add the published module to your Go application:
+Add the published module from your application's Go module directory:
 
 ```sh
 go get github.com/easqr/iscconfigexporter@v0.8.0
 ```
 
-The following function uses SDK connection settings configured as above and returns the export result or an error:
+Follow the [Go library guide](docs/LIBRARY.md) to configure the SDK, run an export,
+handle errors, and read snapshots. Reading existing snapshots uses the
+SDK-free `github.com/easqr/iscconfigexporter/snapshot` package and needs no tenant
+credentials.
 
-```go
-package example
+## Optional workflows
 
-import (
-    "context"
+- [Retrieve Configuration Hub mappings](docs/MAPPINGS.md): save mappings in a
+  separate archive. This requires additional read permission; ordinary exports
+  do not request mappings.
+- [Evaluate Configuration Hub backups](docs/CONFIGURATION.md#backup-evaluation):
+  list and evaluate backups after an export. The supplied integration is
+  read-only and cannot delete backups. `-cleanup-preview` still runs an export
+  and saves a snapshot.
 
-    exporter "github.com/easqr/iscconfigexporter"
-    "github.com/easqr/iscconfigexporter/sdk"
-)
+The exporter saves configuration locally. Importing or restoring it, comparing
+environments, scheduling exports, and publishing to Git or remote storage require
+separate tools or workflows.
 
-func exportConfiguration(ctx context.Context) (exporter.Result, error) {
-    c := exporter.DefaultConfig()
-    c.Tenant = "example"
-    c.Output = "exports"
-    api, err := sdk.New(c, nil)
-    if err != nil {
-        return exporter.Result{}, err
-    }
-    service := exporter.Service{
-        Engine: exporter.Engine{Config: c, API: api},
-        Store: exporter.FileStore{Output: c.Output},
-    }
-    return service.Export(ctx)
-}
-```
+## Further documentation
 
-Go applications can also supply SDK configuration with `sdk.NewWithConfiguration`, or use `Engine.ExportAndDownload` and `BuildSnapshot` separately. See [architecture](docs/ARCHITECTURE.md) for component interfaces and extension points, and [snapshot files and readers](docs/SNAPSHOTS.md#go-readers) for reading snapshots without the SailPoint SDK.
+- [Configuration reference](docs/CONFIGURATION.md): filters, timeouts, credentials, and backup settings.
+- [Operations and troubleshooting](docs/OPERATIONS.md): results, failures, storage, and recovery.
+- [Documentation index](docs/README.md): library, format, API, and contributor references.
 
-## Optional mapping retrieval
-
-Configuration Hub Object Mappings can be retrieved separately into an archive containing `mappings.json` and `provenance.json`. Ordinary exports never request mappings or require their permissions. See [mapping retrieval](docs/MAPPINGS.md) for CLI examples, permissions, the library API and offline differ handoff.
-
-## Operations and security
-
-- [Documentation overview](docs/README.md)
-- [Configuration reference](docs/CONFIGURATION.md)
-- [Operations and troubleshooting](docs/OPERATIONS.md)
-- [Live-tenant validation checklist](docs/LIVE_VALIDATION.md)
-- [Dependency licenses](docs/DEPENDENCIES.md)
-
-Configuration exports can contain secrets. Protect output storage and access; files use permissions 0600 and directories 0700, allowing access only to the owning user. Exported payloads are preserved without redaction. No encryption or signature verification is provided. Exporter logs omit raw API error bodies and object payloads, and SDK credentials are not written to exporter policy or manifests.
-
-Use private storage under your control and an HTTPS SDK connection URL you trust. See [configuration](docs/CONFIGURATION.md) for authentication and logging limitations.
+Files are saved with permissions `0600` and directories with `0700`. Logs omit
+object payloads and raw API error bodies; SDK credentials are not written to
+manifests. Exported content is not encrypted or signature-verified. Use private
+storage and an HTTPS API URL you trust.
 
 ## License
 
-The original configexporter source code and documentation are licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their own licenses; see [dependency licenses and notices](docs/DEPENDENCIES.md).
+Source code and documentation are licensed under the
+[Apache License, Version 2.0](LICENSE). Third-party dependencies retain their own
+licenses; see [dependency licenses and notices](docs/DEPENDENCIES.md).

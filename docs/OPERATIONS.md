@@ -1,4 +1,7 @@
-# Execution and recovery
+# Operations and troubleshooting
+
+Use this guide after [running an export](../README.md#build-and-run). If a run
+fails, keep its result and any reported job ID before deciding whether to retry.
 
 ## Export lifecycle
 
@@ -10,7 +13,9 @@ Only transient read responses are retried. Export initiation is never retried au
 
 When the remote job ID is known, CLI failures include it, including cancellation and timeout messages. Use that ID to inspect the job in ISC before retrying. If initiation fails without returning an ID, the exporter cannot identify any job that may have been created.
 
-Go callers of `Service.Export` can retrieve a known ID from `*exporter.ExportError` with `errors.As`; its `JobID` field identifies the remote job and its `Unwrap` method preserves the underlying cause for `errors.Is` and `errors.As`. This applies to failures during polling, downloading, snapshot preparation and publication, and initiation errors that return an ID. A known ID does not imply successful publication or remote failure. Always inspect the returned result as well: publication can become visible before a later storage error. Failures without a known ID do not return this error type.
+For application-level error handling, including `*exporter.ExportError` and
+errors after a snapshot becomes visible, see the
+[Go library guide](LIBRARY.md#handle-failures-in-an-application).
 
 ## Results and errors
 

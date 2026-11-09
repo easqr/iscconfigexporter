@@ -2,12 +2,28 @@
 
 Mapping retrieval saves Configuration Hub Object Mappings to a separate local archive. It reads tenant data without changing it, and does not run a configuration export or backup evaluation. Ordinary configuration exports do not require mapping permissions.
 
+Before retrieving mappings, complete the [exporter setup](../README.md#build-and-run)
+for the target tenant. You also need `sp:config-object-mapping:read`; see
+[API and permissions](#api-and-permissions).
+
 ## CLI
 
-Use the existing exporter policy and native SDK connection settings for the **target/current** tenant:
+Use `exporter.json` and SDK connection settings for the **target/current** tenant.
+Replace `invented-prod` below with the source organization whose mappings you
+want. Choose a new archive directory for each retrieval.
+
+Validate the options without contacting ISC:
 
 ```sh
-isc-exporter -config exporter-sandbox.json -retrieve-mappings \
+./isc-exporter -config exporter.json -retrieve-mappings \
+  -mapping-source-org invented-prod \
+  -mapping-output ./mapping-archives/prod-to-sandbox-001 -validate
+```
+
+Expect `configuration valid`. Then retrieve the mappings:
+
+```sh
+./isc-exporter -config exporter.json -retrieve-mappings \
   -mapping-source-org invented-prod \
   -mapping-output ./mapping-archives/prod-to-sandbox-001
 ```
@@ -111,7 +127,12 @@ func saveMappings(ctx context.Context, c exporter.Config, api exporter.MappingAP
 
 ## Offline differ handoff
 
-Configdiffer is a separate, currently unpublished project. Its source checkout contains the *Export input contract* and *Comparison policy v2* documents. Once you have built its CLI, you can import tenant-specific mappings as follows:
+Configdiffer is a separate tool for comparing the exported configurations offline.
+Build its CLI from its source checkout before following this example. Its
+*Export input contract* and *Comparison policy v2* documents describe supported
+inputs and policy rules.
+
+To use the saved mappings in a comparison:
 
 ```sh
 isc-configdiffer --mode drift \
@@ -122,7 +143,23 @@ isc-configdiffer --mode drift \
   --hub-source-tenant invented-prod --hub-target-tenant invented-sb
 ```
 
-Use a policy with `version:2`, `id`, and `profile:"isc-portable-v2"` at the policy path above. The saved bytes' SHA-256 can be checked against `provenance.json`. When given the bare array path above, the differ uses explicit source/target context and hashes the file. Passing the bundle directory instead validates `provenance.json` automatically; the sidecar records retrieval context and integrity rather than remote authenticity. Its strict importer can reject additional response fields or unsupported active JSONPath expressions, even when retrieval validly preserved them. Retrieval success does not imply a rule is supported or applicable in a comparison. Disabled unsupported paths stay inert; unsupported active rules must never be silently dropped. Hub substitutions remain separate from strict directional environment assertions.
+Create a comparison policy at `/policies/portable-policy.json` with `version:2`,
+an `id`, and `profile:"isc-portable-v2"`. Set the tenant and environment labels to
+match your exports.
+
+Choose which saved input to pass to `--hub`:
+
+| Input | What the differ checks |
+| --- | --- |
+| `mappings.json` | Hashes the array and uses the explicit source/target context supplied on the command line |
+| The archive directory | Also validates `provenance.json` and the recorded mapping checksum |
+
+The archive records retrieval context and integrity; it does not prove remote
+authenticity. The differ can reject additional response fields or unsupported
+active JSONPath expressions even when the exporter successfully saved them.
+Saving mappings does not establish that every rule is supported or applicable
+to your comparison. Disabled unsupported paths stay inactive. Hub substitutions
+and explicit directional environment assertions are separate policy choices.
 
 ## API and permissions
 
