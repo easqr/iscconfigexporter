@@ -2,11 +2,14 @@ GO ?= go
 GO_TOOLCHAIN ?= go1.27.3
 GOVULNCHECK_VERSION := v1.9.0
 TEST_TIMEOUT ?= 5m
+VERSION ?=
+BUILD_OUTPUT ?= isc-exporter
+BUILD_LDFLAGS = -X gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo.releaseVersion=$(VERSION)
 
 export GOTOOLCHAIN := $(GO_TOOLCHAIN)
 export GOFLAGS := $(GOFLAGS) -mod=readonly
 
-.PHONY: check release-check toolchain fmt fmt-check vet test test-race vuln smoke build
+.PHONY: check release-check release-build toolchain fmt fmt-check vet test test-race vuln smoke build
 
 # Keep the default target suitable for local development and future CI jobs.
 check: toolchain fmt-check vet test test-race smoke
@@ -48,7 +51,16 @@ smoke:
 	trap 'exit 1' HUP INT TERM; \
 	$(GO) build -o "$$tmp/isc-exporter" ./cmd/isc-exporter; \
 	"$$tmp/isc-exporter" -help >"$$tmp/help.txt" 2>&1; \
+	"$$tmp/isc-exporter" -version; \
 	"$$tmp/isc-exporter" -config exporter.example.json -validate
 
 build:
-	$(GO) build -o isc-exporter ./cmd/isc-exporter
+	$(GO) build -ldflags '$(BUILD_LDFLAGS)' -o '$(BUILD_OUTPUT)' ./cmd/isc-exporter
+
+# Release identification must match a tag at a clean checkout, without moving tags.
+release-build:
+	@test -n '$(VERSION)' || { echo 'Set VERSION to the release tag, for example v0.7.0'; exit 1; }
+	@test -z "$$(git status --porcelain)" || { echo 'Release builds require a clean checkout'; exit 1; }
+	@test "$$(git rev-parse 'refs/tags/$(VERSION)^{commit}')" = "$$(git rev-parse HEAD)" || { echo 'VERSION must name a release tag at HEAD'; exit 1; }
+	$(MAKE) release-check
+	$(MAKE) build VERSION='$(VERSION)' BUILD_OUTPUT='$(BUILD_OUTPUT)'

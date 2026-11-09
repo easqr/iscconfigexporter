@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo"
 	"gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
 	"io"
 	"log/slog"
@@ -29,6 +30,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) error {
 func runWithAdapter(ctx context.Context, args []string, out, errOut io.Writer, newAdapter func(exporter.Config) (*sdk.Adapter, error)) error {
 	flags := flag.NewFlagSet("isc-exporter", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	version := flags.Bool("version", false, "print version, commit, modification state, Go version and platform without loading configuration")
 	p := flags.String("config", "exporter.json", "exporter policy `file`; SDK connection settings use a separate config.json")
 	validate := flags.Bool("validate", false, "check local policy and options without contacting ISC or checking credentials")
 	preview := flags.Bool("cleanup-preview", false, "preview the enabled backup policy after exporting; still writes an export")
@@ -43,6 +45,7 @@ Usage:
   isc-exporter [options]
 
 Examples:
+  isc-exporter -version
   isc-exporter -config exporter.json -validate
   isc-exporter -config exporter.json
   isc-exporter -config exporter.json -cleanup-preview
@@ -71,6 +74,11 @@ Options (use -help or -h to show this help):`)
 	}
 	if flags.NArg() != 0 {
 		return errors.New("this command does not accept positional arguments; use -config to select a policy file and -help for usage")
+	}
+	if *version {
+		info := buildinfo.Read()
+		_, err := fmt.Fprintf(out, "isc-exporter %s\ncommit: %s\nmodified: %s\ngo: %s\nplatform: %s/%s\n", info.Version, info.Commit, info.Modified, info.GoVersion, info.GOOS, info.GOARCH)
+		return err
 	}
 	f, e := os.Open(*p)
 	if e != nil {

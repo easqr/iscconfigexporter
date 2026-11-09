@@ -27,6 +27,7 @@ The Make targets are also available individually:
 | `make vuln` | Run pinned govulncheck v1.9.0 against the current vulnerability database |
 | `make release-check` | Run `make check` and vulnerability scanning |
 | `make build` | Build `isc-exporter` in the repository root |
+| `make release-build VERSION=v0.7.0` | Require a clean checkout and matching tag at HEAD, run release checks, then build with that release version |
 | `make toolchain` | Print the selected Go version |
 
 Make targets select Go 1.27.3 through `GOTOOLCHAIN` and use read-only module mode so checks cannot update `go.mod` or `go.sum`. Formatting uses `gofmt` from that selected toolchain. The version and scanner pin live in the Makefile. For an intentional toolchain upgrade, update that pin along with `go.mod` and the build requirements; a one-run evaluation can use `make GO_TOOLCHAIN=go1.27.4 check`. Format newly added Go files before staging them; the formatting targets inspect Git-tracked files, including staged additions.
@@ -43,6 +44,23 @@ git diff --check
 Vulnerability scanning requires network access to the Go vulnerability database and, on first use, the pinned scanner module. It prints the Go and scanner versions and reports reachable findings separately from package/module advisories. A reachable vulnerability or scanner failure fails the target; uncalled dependency advisories remain visible for review. Test and smoke checks leave source files unchanged; only `make fmt` reformats files, and only `make build` leaves a binary in the checkout.
 
 Checks currently run locally. GitLab CI workflow and macOS runner setup are tracked in [issue #7](https://gitlab.com/easqrtech/iam/iscconfigexporter/-/work_items/7).
+
+## Release identification
+
+Use semantic version tags such as `v0.7.0`. `isc-exporter -version` works without policy or SDK configuration and reports the exporter version, full commit ID, modification state, compiler and platform. Metadata comes from Go's embedded build information; no Git command runs when the exporter starts. Missing commit or modification metadata is reported as `unknown`. Development builds without a module version report `development`.
+
+Release builds inject the approved version through the linker. After committing and creating the matching tag at a clean checkout, run:
+
+```sh
+make release-build VERSION=v0.7.0
+./isc-exporter -version
+```
+
+The target rejects missing or mismatched tags and modified or untracked files, runs release checks, and then builds the binary. It does not create, move or publish tags. `BUILD_OUTPUT` selects another output path, such as a temporary directory. For an ordinary local build, use `make build`; `make build VERSION=v0.7.0` injects a version without release enforcement and is useful only for testing build identification.
+
+The linker setting is `-X gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo.releaseVersion=v0.7.0`. Without it, the exporter uses its embedded module version when available. VCS commit and modification state describe this module only when it is the main module. Builds made with VCS stamping disabled can still report their version, with unknown VCS fields.
+
+SDK requests retain consumer identifier `isc-config-exporter`. A clean release uses consumer version `0.7.0`; development builds with a known commit use a shortened revision, for example `development+79976eb12345.dirty`. Modified builds carry a dirty marker. When imported as a library, the consumer version comes from the exporter dependency's module version, not the host application's version or commit. Replaced exporter dependencies report `development` because their original module version may not identify the code actually built.
 
 See the [SDK integration review](development/SDK_INTEGRATION.md#automated-verification) for coverage and the [live-tenant checklist](LIVE_VALIDATION.md) for operator checks. The owner has reported completing live verification; no individual live test results are recorded in this repository's checklist.
 

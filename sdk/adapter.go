@@ -20,6 +20,7 @@ import (
 	beta "github.com/sailpoint-oss/golang-sdk/v2/api_beta"
 	"github.com/spf13/viper"
 	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
+	"gitlab.com/easqrtech/iam/iscconfigexporter/internal/buildinfo"
 	"io"
 	"net/http"
 	"net/url"
@@ -89,7 +90,7 @@ func NewWithConfiguration(c exporter.Config, cfg *sailpoint.Configuration, trans
 	copyCfg.ClientConfiguration = conn
 	copyCfg.Debug = false
 	copyCfg.ConsumerIdentifier = "isc-config-exporter"
-	copyCfg.ConsumerVersion = "development"
+	copyCfg.ConsumerVersion = buildinfo.Read().ConsumerVersion()
 	copyCfg.DefaultHeader = make(map[string]string, len(cfg.DefaultHeader))
 	for k, v := range cfg.DefaultHeader {
 		copyCfg.DefaultHeader[k] = v

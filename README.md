@@ -44,6 +44,8 @@ Run these steps from the repository root:
 
 Use `./isc-exporter -help` for command-line options. Backup evaluation is disabled by default. `-cleanup-preview` evaluates an enabled backup policy after exporting; it still creates a remote export job and saves a local snapshot. See [backup evaluation](docs/CONFIGURATION.md#backup-evaluation).
 
+Run `./isc-exporter -version` to see the exporter version, full commit ID, checkout modification state, Go version and platform. This command needs no configuration or credentials. Unavailable commit or modification information is shown as `unknown`.
+
 Ctrl+C or SIGTERM requests cancellation. See [authentication limits](docs/CONFIGURATION.md#authentication-limits) for token requests that cannot be interrupted.
 
 ## Output
