@@ -43,9 +43,6 @@ git diff --check
 
 Vulnerability scanning requires network access to the Go vulnerability database and, on first use, the pinned scanner module. It prints the Go and scanner versions and reports reachable findings separately from package/module advisories. A reachable vulnerability or scanner failure fails the target; uncalled dependency advisories remain visible for review. Test and smoke checks leave source files unchanged; only `make fmt` reformats files, and only `make build` leaves a binary in the checkout.
 
-Checks currently run locally. GitHub Actions workflow and macOS runner setup are tracked in [issue #7](https://github.com/easqr/iscconfigexporter/issues/7).
-
-
 ## Release identification
 
 Use semantic version tags such as `v0.7.0`. `isc-exporter -version` works without policy or SDK configuration and reports the exporter version, full commit ID, modification state, compiler and platform. Metadata comes from Go's embedded build information; no Git command runs when the exporter starts. Missing commit or modification metadata is reported as `unknown`. Development builds without a module version report `development`.
@@ -63,7 +60,7 @@ The linker setting is `-X github.com/easqr/iscconfigexporter/internal/buildinfo.
 
 SDK requests retain consumer identifier `isc-config-exporter`. A clean release uses consumer version `0.7.0`; development builds with a known commit use a shortened revision, for example `development+79976eb12345.dirty`. Modified builds carry a dirty marker. When imported as a library, the consumer version comes from the exporter dependency's module version, not the host application's version or commit. Replaced exporter dependencies report `development` because their original module version may not identify the code actually built.
 
-See the [SDK integration review](development/SDK_INTEGRATION.md#automated-verification) for coverage and the [live-tenant checklist](LIVE_VALIDATION.md) for operator checks. The owner has reported completing live verification; no individual live test results are recorded in this repository's checklist.
+See the [SDK integration review](development/SDK_INTEGRATION.md#automated-verification) for coverage and the [live-tenant checklist](LIVE_VALIDATION.md) for operator checks.
 
 GoDoc includes runnable offline examples for `Service.Export`, `RetrieveMappings`,
 `ParseDuration`, `snapshot.Read` and `snapshot.FromFiles`. They use local providers

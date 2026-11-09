@@ -1,6 +1,6 @@
 # Live-tenant validation checklist
 
-Live-tenant verification has been completed by the owner. This checklist supports repeat validation and does not record which individual scenarios were performed.
+Use this checklist to validate export, mapping retrieval, and recovery behavior against a nonproduction tenant.
 
 ## Preparation
 

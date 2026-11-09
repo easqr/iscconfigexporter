@@ -1,10 +1,10 @@
 # API capabilities and limits
 
-The exporter uses SailPoint Go SDK **v2.7.106**. The endpoint descriptions below reflect that pinned dependency, rather than a claim about the latest SDK release. Live-tenant verification has been completed by the owner; the [validation checklist](LIVE_VALIDATION.md) is available for repeat checks.
+The exporter uses SailPoint Go SDK **v2.7.106**. The endpoint descriptions below reflect that pinned dependency, rather than a claim about the latest SDK release.
 
 ## Configuration exports
 
-The Beta SP-Config client provides discovery (`ListSpConfigObjects`), export initiation (`ExportSpConfig` with `IncludeTypes`), status polling (`GetSpConfigExportStatus`) and download (`GetSpConfigExport`). These methods expose no pagination controls. The complete download is buffered in memory, so memory requirements grow with export size; see [memory investigation #5](https://github.com/easqr/iscconfigexporter/issues/5). Results expire; download them promptly after completion.
+The Beta SP-Config client provides discovery (`ListSpConfigObjects`), export initiation (`ExportSpConfig` with `IncludeTypes`), status polling (`GetSpConfigExportStatus`) and download (`GetSpConfigExport`). These methods expose no pagination controls. The complete download is buffered in memory, so memory requirements grow with export size. Results expire; download them promptly after completion.
 
 The supported job states are `NOT_STARTED`, `IN_PROGRESS`, `COMPLETE`, `CANCELLED` and `FAILED`. Only `COMPLETE` permits download. The pinned Go SDK represents status as a string; the exporter rejects unrecognized values.
 
@@ -23,8 +23,6 @@ The supplied `sdk.Backups` adapter provides read-only inventory. Its `Delete` me
 ## Custom backup integrations
 
 Custom Go integrations can supply a `BackupAPI` and `OwnershipVerifier`. They must independently establish ownership and safe deletion eligibility, including protection against changes between verification and deletion. A local registry or record rechecks alone do not provide those guarantees. Retention decisions and partial failures are reported separately from snapshot publication.
-
-The supplied SDK adapter remains read-only because the reviewed API contract does not establish the required ownership and conditional deletion guarantees. Investigation is tracked in [backup ownership and deletion issue #2](https://github.com/easqr/iscconfigexporter/issues/2).
 
 ## Object mappings
 

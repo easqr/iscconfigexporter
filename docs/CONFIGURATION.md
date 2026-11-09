@@ -66,7 +66,7 @@ Missing or malformed configuration produces an error without exposing file conte
 
 SDK v2.7.106 token requests use a separate HTTP client. They cannot be interrupted by the export context or configured API timeout, and do not use the API transport override or redirect policy. Token URLs must use HTTPS without user information or a query string.
 
-Cached tokens are not refreshed by expiry; recreate a long-running application's adapter after an expired-token failure. Token transport errors can appear on standard output, so scripts expecting JSON must account for them. Programmatically supplied SDK tokens are supported. These limitations are tracked in [SDK authentication issue #1](https://github.com/easqr/iscconfigexporter/issues/1).
+Cached tokens are not refreshed by expiry; recreate a long-running application's adapter after an expired-token failure. Token transport errors can appear on standard output, so scripts expecting JSON must account for them. Programmatically supplied SDK tokens are supported.
 
 ## Request retries
 

@@ -13,7 +13,7 @@ This is a historical index for contributors. Current usage and behavior are docu
 | Backup lifecycle | `f7b1028` | Retention policies, registry and ownership safeguards; SDK inventory with deletion blocked |
 | Integration | `6ddc24f` | Offline integration and failure tests, race/static checks and operational documentation |
 
-These initial checks ran on Go 1.27.2, macOS arm64, using local doubles. They do not describe the scope or results of subsequent live-tenant verification.
+These initial checks ran on Go 1.27.2, macOS arm64, using local doubles.
 
 ## Subsequent changes
 
@@ -23,6 +23,4 @@ These initial checks ran on Go 1.27.2, macOS arm64, using local doubles. They do
 - The module path became `gitlab.com/easqrtech/iam/iscconfigexporter`.
 - `46ffcab` removed the deprecated SDK home-directory configuration fallback.
 - `701f210` removed root snapshot aliases and internal forwarding helpers, consolidated managed-path validation, restricted discovery to exactly `config.json`, and aligned polling with documented export states.
-- The repository and module moved to `github.com/easqr/iscconfigexporter`. Existing release tags retain their GitLab module path. All eight issues were copied to GitHub with their original numbers, descriptions and checklist states; issue #6 remains closed and includes its original discussion comment. Source authors and timestamps are recorded in the migrated text. Issue #7 now targets GitHub Actions while retaining its original GitLab requirements as a source record. Documentation issue links point to GitHub.
-
-The owner has reported completing live-tenant verification. Individual live test results are not recorded here. The [checklist](../LIVE_VALIDATION.md) supports repeat verification.
+- The repository and module moved to `github.com/easqr/iscconfigexporter`. Tags `v0.6.0` and `v0.7.0` retain their GitLab module path; `v0.8.0` uses the GitHub module path.

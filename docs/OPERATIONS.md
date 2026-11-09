@@ -82,7 +82,7 @@ Treat generation files as read-only. Unchanged artifacts can be hardlinked acros
 
 Only files listed in the previous manifest are tracked for replacement or removal. Other regular files in the current generation are copied forward; files elsewhere in the output directory are untouched. Name collisions, nested symlinks, special files, invalid manifests, and an ordinary directory at the tenant pointer path block publication. Preserve any local edits before resolving a conflict or choosing a fresh output root.
 
-Use private local storage under your control. It must support POSIX symbolic links, hardlinks, atomic rename and directory sync; Windows and network filesystems are unsupported. Capacity, quota and permission failures can prevent publication. Old and orphan generations remain on disk and require manual management. Retention follow-up is tracked in [snapshot retention issue #3](https://github.com/easqr/iscconfigexporter/issues/3).
+Use private local storage under your control. It must support POSIX symbolic links, hardlinks, atomic rename and directory sync; Windows and network filesystems are unsupported. Capacity, quota and permission failures can prevent publication. Old and orphan generations remain on disk and require manual management.
 
 ## Interrupted or failed publication
 

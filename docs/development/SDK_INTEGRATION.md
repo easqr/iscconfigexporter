@@ -53,4 +53,4 @@ The offline suite covers:
 - Mapping response preservation, source groups, strict validation, provenance, private file permissions, output separation, no replacement and CLI operation isolation.
 - External-package library usage, CLI help and credential-free local validation. The sibling differ also has an offline mapping-bundle handoff test.
 
-Tests use local doubles and no live tenant credentials. Owner-run live verification is separate; see the [validation checklist](../LIVE_VALIDATION.md).
+Tests use local doubles and no live tenant credentials. For operator checks, see the [validation checklist](../LIVE_VALIDATION.md).

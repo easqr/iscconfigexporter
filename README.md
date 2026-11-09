@@ -67,7 +67,11 @@ Keep snapshot files read-only; use a separate copy if you need to edit configura
 
 ## Library usage
 
-Module path: `github.com/easqr/iscconfigexporter`. The repository moved from GitLab; update existing imports to this path. Tags `v0.6.0` and `v0.7.0` retain their original GitLab module path. Until a new release is tagged, use `go get github.com/easqr/iscconfigexporter@main` for the migrated module.
+Module path: `github.com/easqr/iscconfigexporter`. Add the published module to your Go application:
+
+```sh
+go get github.com/easqr/iscconfigexporter@v0.8.0
+```
 
 The following function uses SDK connection settings configured as above and returns the export result or an error:
 
