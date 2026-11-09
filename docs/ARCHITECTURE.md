@@ -8,6 +8,8 @@ The root package owns Config, Engine, ExportAPI, Store, BackupLifecycle, Registr
 
 Flow: discover exportable types → validate selection → initiate once → poll COMPLETE → download → validate every envelope → organize → publish → optional backup evaluation. A successful export is distinct from backup evaluation success.
 
+`Engine.ExportAndDownload` retains any known remote job ID in its returned download, including on failure. `Service.Export` wraps failures with a known ID in `*ExportError`, preserving the underlying error chain and any actual publication metadata. CLI diagnostics retain this ID on cancellation and timeout; a local interruption does not cancel the remote job.
+
 Organization is pure. It requires matching tenant, selected types, nonempty stable identity, envelope version `1` and an object payload. A payload `object.id`, when present, must match `self.id`. Building, publication and reading share envelope validation. Unknown fields and signatures survive. JSON keys are sorted using encoding/json; arrays keep source order and numbers use json.Number to avoid float precision loss. Duplicate JSON keys are rejected. Exporter-generated completion timestamps are stored in the manifest; timestamps present in exported payloads are preserved. This is deterministic JSON, not a cryptographic JSON canonicalization standard; no signatures are regenerated or claimed verified.
 
 IDs become `id-<UTF-8 hex>.json`, a reversible portable encoding that avoids colon substitution and case-fold collisions. Slash, backslash, control characters, dot identities and IDs over 100 bytes fail validation. Tenant/type names use restricted portable identifiers; device names are forbidden. Case-folded path collisions fail closed.

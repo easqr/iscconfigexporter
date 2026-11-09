@@ -17,6 +17,7 @@ type ExportAPI interface {
 	Discover(ctx context.Context) ([]string, error)
 	// Start creates one export job for types and returns its nonempty job ID.
 	// An ambiguous failure may have created a job; creation must not be retried blindly.
+	// If a provider knows the job ID despite an error, it should return both.
 	Start(ctx context.Context, types []string) (string, error)
 	// Status returns NOT_STARTED, IN_PROGRESS, COMPLETE, CANCELLED or FAILED.
 	// Engine rejects unrecognized states and downloads only after COMPLETE.
@@ -32,6 +33,7 @@ type ExportAPI interface {
 type Exporter interface {
 	// Export runs the workflow. Inspect both the returned error and Result.CleanupError;
 	// publication metadata may be nonzero on an error after output becomes visible.
+	// Service failures with a known remote job ID can be inspected as *ExportError.
 	Export(ctx context.Context) (Result, error)
 }
 

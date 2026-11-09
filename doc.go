@@ -5,6 +5,8 @@
 // adapter; [FileStore] saves complete snapshots. [Service.Export] performs remote
 // export, validation and publication, followed by an optional BackupLifecycle.
 // Inspect both its returned error and Result.CleanupError.
+// Service failures with a known remote job ID wrap the cause in [ExportError];
+// retrieve it with errors.As rather than parsing diagnostic text.
 //
 // For separate workflow stages, [Engine.ExportAndDownload] creates and downloads
 // a remote export job, and [BuildSnapshot] validates and organizes its records

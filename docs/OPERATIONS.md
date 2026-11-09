@@ -8,6 +8,10 @@ The exporter waits on `NOT_STARTED` and `IN_PROGRESS`, downloads on `COMPLETE`, 
 
 Only transient read responses are retried. Export initiation is never retried automatically. If initiation fails ambiguously, inspect ISC before repeating: a remote job may already exist. Cancellation does not cancel the remote job, which may continue running. See [configuration](CONFIGURATION.md) for retry settings and authentication timeout limits.
 
+When the remote job ID is known, CLI failures include it, including cancellation and timeout messages. Use that ID to inspect the job in ISC before retrying. If initiation fails without returning an ID, the exporter cannot identify any job that may have been created.
+
+Go callers of `Service.Export` can retrieve a known ID from `*exporter.ExportError` with `errors.As`; its `JobID` field identifies the remote job and its `Unwrap` method preserves the underlying cause for `errors.Is` and `errors.As`. This applies to failures during polling, downloading, snapshot preparation and publication, and initiation errors that return an ID. A known ID does not imply successful publication or remote failure. Always inspect the returned result as well: publication can become visible before a later storage error. Failures without a known ID do not return this error type.
+
 ## Results and errors
 
 Use `isc-exporter -help` for action examples and options. Invalid command-line options produce one error with usage guidance, rather than a full help listing. CLI failures use an `error:` prefix and a nonzero exit status.

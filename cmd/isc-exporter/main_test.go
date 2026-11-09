@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	exporter "gitlab.com/easqrtech/iam/iscconfigexporter"
 	"gitlab.com/easqrtech/iam/iscconfigexporter/sdk"
@@ -138,5 +139,34 @@ func TestCLIWrappedCancellationMessages(t *testing.T) {
 		if got := cliErrorMessage(tc.err); !strings.HasPrefix(got, tc.want) {
 			t.Fatalf("unexpected error message: %s", got)
 		}
+	}
+}
+
+func TestCLIJobFailureMessages(t *testing.T) {
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded, errors.New("ISC request failed (HTTP 403)")} {
+		err := fmt.Errorf("outer workflow: %w", &exporter.ExportError{JobID: "known-job", Err: fmt.Errorf("request failed: %w", cause)})
+		message := cliErrorMessage(err)
+		for _, text := range []string{`export job "known-job"`, "inspect", "ISC", "before retrying"} {
+			if !strings.Contains(message, text) {
+				t.Fatalf("missing %q in %q", text, message)
+			}
+		}
+		if !errors.Is(err, cause) {
+			t.Fatal("formatting changed the error chain")
+		}
+		if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
+			if !strings.Contains(message, "remote job may continue") {
+				t.Fatal("missing remote cancellation guidance", message)
+			}
+		} else if !strings.Contains(message, "HTTP 403") {
+			t.Fatal("lost failure reason", message)
+		}
+	}
+	if got := cliErrorMessage(context.Canceled); strings.Contains(got, "export job") {
+		t.Fatal("invented a job ID", got)
+	}
+	message := cliErrorMessage(&exporter.ExportError{JobID: "job\nforged log", Err: errors.New("request failed")})
+	if strings.Contains(message, "\n") || !strings.Contains(message, `job\nforged log`) {
+		t.Fatal("job ID was not safely quoted", message)
 	}
 }

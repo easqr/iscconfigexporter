@@ -31,7 +31,8 @@ type Download struct {
 // ExportAndDownload discovers types, applies filters, creates one job, polls
 // until COMPLETE and downloads its full JSON document. It does not write files.
 // Creation is not retried: a failure may still have created a remote job.
-// The returned Download can contain a job ID on a later failure, for inspection.
+// The returned Download retains any job ID supplied by the provider, including
+// alongside an initiation error or on a later failure, for inspection.
 // Context cancellation stops local work, not the remote job; provider authentication
 // can have separate cancellation limits. BuildSnapshot validates the downloaded data.
 func (e Engine) ExportAndDownload(ctx context.Context) (Download, error) {
@@ -82,13 +83,13 @@ func (e Engine) ExportAndDownload(ctx context.Context) (Download, error) {
 		return out, errors.New("no exportable types remain after filtering; check include and exclude in the exporter policy")
 	}
 	id, err := e.API.Start(ctx, out.Types)
+	out.JobID = id
 	if err != nil {
 		return out, fmt.Errorf("cannot start export; the request was not retried, so inspect tenant export jobs before repeating: %w", err)
 	}
 	if id == "" {
 		return out, errors.New("ISC returned no export job ID; inspect tenant export jobs before starting another export")
 	}
-	out.JobID = id
 	poll, _ := ParseDuration(e.Config.PollInterval)
 	for {
 		var status string

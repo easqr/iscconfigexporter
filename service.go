@@ -27,6 +27,9 @@ type Service struct {
 // An export or publication failure is returned as error; [Result.Manifest] may be
 // nonzero if publication became visible before a later storage error. Such an
 // error requires inspecting the stored snapshot before retrying.
+// Failures with a known remote job ID wrap their cause in [ExportError], including
+// polling, download, preparation and publication failures. No manifest is invented
+// for a job that did not produce a published snapshot.
 //
 // Backup evaluation errors do not undo a saved export and do not become the
 // returned error: they appear in [Result.CleanupError], with any partial decisions
@@ -46,15 +49,15 @@ func (s Service) Export(ctx context.Context) (Result, error) {
 	defer cancel()
 	d, e := s.Engine.ExportAndDownload(ctx)
 	if e != nil {
-		return out, e
+		return out, exportFailure(d.JobID, e)
 	}
 	snap, e := BuildSnapshot(s.Engine.Config.Tenant, d, time.Now())
 	if e != nil {
-		return out, fmt.Errorf("cannot prepare export files: %w", e)
+		return out, exportFailure(d.JobID, fmt.Errorf("cannot prepare export files: %w", e))
 	}
 	out.Manifest, e = s.Store.Publish(ctx, snap)
 	if e != nil {
-		return out, fmt.Errorf("cannot save export snapshot: %w", e)
+		return out, exportFailure(d.JobID, fmt.Errorf("cannot save export snapshot: %w", e))
 	}
 	if s.Logger != nil {
 		s.Logger.InfoContext(ctx, "export snapshot saved", "objects", len(snap.Artifacts))

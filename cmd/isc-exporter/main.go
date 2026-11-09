@@ -165,11 +165,21 @@ Options (use -help or -h to show this help):`)
 
 // Simplify cancellation only for CLI display; execution retains wrapped errors.
 func cliErrorMessage(err error) string {
+	message := err.Error()
+	interrupted := false
 	if errors.Is(err, context.Canceled) {
-		return "operation canceled"
+		message = "operation canceled"
+		interrupted = true
+	} else if errors.Is(err, context.DeadlineExceeded) {
+		message = "operation timed out; check the connection and the timeout setting in the exporter policy"
+		interrupted = true
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "operation timed out; check the connection and the timeout setting in the exporter policy"
+	var failure *exporter.ExportError
+	if errors.As(err, &failure) && failure.JobID != "" {
+		if interrupted {
+			return fmt.Sprintf("%s (export job %q); the remote job may continue; inspect it in ISC before retrying", message, failure.JobID)
+		}
+		message += "; inspect the job in ISC before retrying"
 	}
-	return err.Error()
+	return message
 }
