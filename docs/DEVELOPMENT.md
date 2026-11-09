@@ -45,23 +45,6 @@ Vulnerability scanning requires network access to the Go vulnerability database 
 
 Checks currently run locally. GitHub Actions workflow and macOS runner setup are tracked in [issue #7](https://github.com/easqr/iscconfigexporter/issues/7).
 
-## Repository settings after migration
-
-Settings were compared with the GitLab source on November 8, 2026. Both repositories are private and use `main` as the default branch. GitHub issues and pull requests are enabled, and linked issues close automatically after merge. Merge commits and squash merges are allowed; rebase merges are disabled. Squash commit messages use the pull request title, and merged head branches are deleted automatically. These are the supported equivalents of the source merge settings.
-
-The source had no configured webhooks, active integrations, deploy keys, active deploy tokens, project or inherited CI/CD variables, pipeline trigger tokens, or secure files to migrate. No CI workflow was present; implementing GitHub Actions remains [issue #7](https://github.com/easqr/iscconfigexporter/issues/7).
-
-The following differences still require an owner decision:
-
-| Area | GitLab source | GitHub destination |
-| --- | --- | --- |
-| Branch protection | `main` permits pushes and merges by Maintainers; force pushes are disabled | GitHub reports that protection rules will not be enforced for this private repository until the organization upgrades to Team or Enterprise. No unenforced rule was created. |
-| Membership | One inherited project Owner; no direct members | The organization has two members and a base Read role; only Owners can contribute. Existing organization membership and permissions were retained. |
-| Wiki | Feature enabled | Private wikis require a plan upgrade. |
-| Forking | Feature enabled for users with access | Private forking is disabled by the destination organization's policy. |
-| Service Desk | Enabled, with confidential tickets by default | No direct GitHub repository equivalent was configured. Existing GitLab Service Desk remains in place. Support routing is tracked in [issue #8](https://github.com/easqr/iscconfigexporter/issues/8). |
-
-GitLab remains available as the `gitlab` remote and retains the original issues and settings. It has not been archived or deleted. Migrated issue authors, creation dates and the original comment date are recorded in the issue text; GitHub's native timeline records the migration actions.
 
 ## Release identification
 
