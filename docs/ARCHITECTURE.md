@@ -52,6 +52,44 @@ identities and IDs over 100 bytes fail validation. Tenant/type names use restric
 portable identifiers; device names are forbidden. Case-folded path collisions fail
 closed.
 
+### Why filenames use IDs instead of object names
+
+ISC object names are display values, not portable filesystem identifiers. Naming
+constraints vary by object type; the published Source and Transform schemas do not
+provide a filename-safe character whitelist. A reported role export failure involving
+`:` and backslashes demonstrates that this is a real compatibility issue, not only a
+hypothetical one. See SailPoint's [Source schema](https://raw.githubusercontent.com/sailpoint-oss/api-specs/main/idn/v3/schemas/Source.yaml),
+[Transform schema](https://raw.githubusercontent.com/sailpoint-oss/api-specs/main/idn/v3/schemas/Transform.yaml)
+and the [reported export failure](https://github.com/yannick-beot-sp/vscode-sailpoint-identitynow/issues/108).
+
+Using an object name unchanged as `<name>.json` creates several risks:
+
+- Linux and macOS interpret `/` as a path separator; NUL cannot be filename content.
+- Windows additionally reserves backslash, colon, asterisk, question mark, double
+  quote, angle brackets, pipe and control characters. Device names such as `CON` and
+  `NUL` remain reserved even with a `.json` extension.
+- Default macOS and Windows filesystems can collapse names that differ only by case;
+  macOS APFS also treats canonically equivalent Unicode spellings as the same name.
+- Object-name character limits do not guarantee filesystem byte limits or full-path
+  limits. For example, ext4 limits a filename to 255 bytes, including the extension.
+- Replacing invalid characters can map different names to the same filename, and an
+  object rename would change its path despite retaining the same identity.
+
+Ordinary spaces and punctuation such as parentheses and ampersands are valid filename
+content on all three platforms; they do not by themselves justify replacement. The
+decision is based on the complete set of portability and identity requirements. See
+the [Linux pathname rules](https://man7.org/linux/man-pages/man7/pathname.7.html),
+[ext4 filename limits](https://docs.kernel.org/filesystems/ext4/directory.html),
+[Windows naming rules](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file),
+and [Apple's APFS normalization documentation](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/APFS_Guide/FAQ/FAQ.html).
+
+Encoding the stable ID in lowercase hexadecimal preserves distinct accepted IDs,
+keeps paths unchanged when objects are renamed, and avoids name sanitization and
+Unicode normalization collisions. The 100-byte ID limit caps the filename at 208
+ASCII bytes, including `id-` and `.json`. The original name remains readable in the
+object JSON. Portable artifact filenames do not imply Windows publication support:
+`FileStore` has separate POSIX storage requirements described below.
+
 The [snapshot reference](SNAPSHOTS.md) describes filenames, manifest fields and reader
 modes. Go consumers use `Manifest.Artifacts` (relative paths and SHA-256 checksums),
 `Counts`, `Types`, `JobID`, `Completed` and `Changes`. Artifacts contain the complete
