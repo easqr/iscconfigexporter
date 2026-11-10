@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const role = `{"version":1,"self":{"type":"ROLE","id":"a:b","name":"Role"},"object":{"large":9007199254740993,"array":[2,1]},"unknown":{"signed":true},"jwsSignature":"abc"}`
+const role = `{"version":1,"self":{"type":"ROLE","id":"a:b","name":"Role"},"object":{"large":9007199254740993,"array":[2,1],"expression":"a && b < c > d"},"unknown":{"signed":true},"jwsSignature":"abc"}`
 
 func download(items string) Download {
 	return Download{JobID: "job", Types: []string{"ROLE", "SOURCE"}, Raw: json.RawMessage(`{"tenant":"example","objects":[` + items + `]}`)}
@@ -23,7 +23,7 @@ func TestBuildSnapshot(t *testing.T) {
 		t.Fatal(a)
 	}
 	s := string(a.Artifacts[0].Data)
-	for _, sub := range []string{"9007199254740993", "unknown", "jwsSignature"} {
+	for _, sub := range []string{"9007199254740993", "unknown", "jwsSignature", `"expression": "a && b < c > d"`} {
 		if !strings.Contains(s, sub) {
 			t.Fatal(s)
 		}

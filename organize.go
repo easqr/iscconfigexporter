@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,11 +80,14 @@ func BuildSnapshot(tenant string, d Download, completed time.Time) (snapfmt.Snap
 			return snapfmt.Snapshot{}, fmt.Errorf("exported records have duplicate identities or would write to the same file")
 		}
 		seen[key] = true
-		b, e := json.MarshalIndent(obj, "", "  ")
-		if e != nil {
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetIndent("", "  ")
+		enc.SetEscapeHTML(false)
+		if e := enc.Encode(obj); e != nil {
 			return snapfmt.Snapshot{}, errors.New("cannot serialize object")
 		}
-		b = append(b, '\n')
+		b := buf.Bytes()
 		out.Artifacts = append(out.Artifacts, snapfmt.Artifact{Path: p, SHA256: snapfmt.Checksum(b), Data: b})
 		out.Manifest.Counts[typ]++
 	}
