@@ -132,7 +132,7 @@ exports/
 ```
 
 Each object file contains the configuration and its original metadata. Filenames
-encode the object's ID; the ID and name are readable inside the JSON. The
+encode the object's ID by default; the ID and name are readable inside the JSON. The
 manifest lists selected types, object counts, file checksums, and paths created,
 modified, unchanged, or deleted since the previous export. Types with no objects
 have no object files.
@@ -147,6 +147,38 @@ versions, so editing one can alter several saved exports. Make a separate copy
 before editing. See [snapshot files and readers](docs/SNAPSHOTS.md) for file
 formats, and [storage and recovery](docs/OPERATIONS.md#snapshot-storage) for
 managing saved versions.
+
+## Filename options
+
+Choose `"filename_mode": "hex"` (default), `"id"`, or `"name"` in the exporter
+policy, or override it for one run:
+
+```sh
+isc-exporter -config exporter.json -filename-mode id
+isc-exporter -config exporter.json -filename-mode name
+isc-exporter -config exporter.json -check-filenames
+```
+
+ID mode writes `<TYPE>/<self.id>.json`; name mode writes
+`<TYPE>/<self.name>.json` by default. When names would collide, every member of
+that collision group receives a `--<self.id>` suffix. Set `"filename_append_id": true`
+in `exporter.json` to force the suffix on every name-mode file (default `false`).
+Lifecycle-state filenames also prepend the identity profile name, for example
+`LIFECYCLE_STATE/Employees--Active.json`. Both are checked against
+Linux, macOS and Windows filename rules and conservative case/Unicode collision
+checks. Any issue fails the export before publication, with affected objects listed;
+values are never silently sanitized or replaced with a fallback.
+Set `"filename_escape": true` in `exporter.json` to reversibly escape unsafe
+characters (for example, `:` becomes `%3A` and literal `%` becomes `%25`).
+The default is `false`; hex filenames are unaffected. Escaped filenames still
+undergo length and collision checks.
+
+`-check-filenames` assesses both ID and name modes and prints a JSON report. It
+starts and downloads an ISC export job, but publishes no local files and performs
+no backup evaluation. Exit status is 1 if either mode has issues, 0 if both pass.
+`-validate` remains an offline policy check, including when combined with these
+options. See [filename compatibility](docs/SNAPSHOTS.md#filename-compatibility)
+for report fields, limitations, and reader compatibility.
 
 ## Library usage
 

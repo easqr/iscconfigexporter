@@ -1,6 +1,9 @@
 {
   "tenant": "example",
   "output": "exports",
+  "filename_mode": "hex",
+  "filename_escape": false,
+  "filename_append_id": false,
   "include": [],
   "exclude": [],
   "timeout": "10m",

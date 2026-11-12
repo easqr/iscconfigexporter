@@ -20,6 +20,9 @@ The example file explicitly sets `backup.dry_run` to `true` and `backup.registry
 |---|---|---|
 | tenant | required | Required tenant name; must exactly match the downloaded export and follow the identifier rules below |
 | output | exports | Directory for snapshots; use private local storage under your control |
+| filename_mode | hex | hex, id or name; ID or readable name filenames; must pass filename compatibility checks before publication |
+| filename_escape | false | Reversibly percent-encode unsafe filename characters in ID/name modes; hex filenames are unchanged |
+| filename_append_id | false | In name mode, force an ID suffix on every filename; otherwise append IDs only to collision groups |
 | include | [] | Empty selects all discovered exportable types; otherwise explicit supported type names |
 | exclude | [] | Supported types removed from selection; duplicates and include overlap rejected |
 | timeout | 10m | Overall time limit for API requests, polling, snapshot saving and backup evaluation; token acquisition has the separate limit described below |
@@ -34,6 +37,25 @@ The example file explicitly sets `backup.dry_run` to `true` and `backup.registry
 | backup.registry | empty | Optional path to local ownership records for a custom integration; records alone do not enable deletion |
 
 `backup.enabled=true` requires `backup.policy` to be `older_than` or `keep_latest`. You can configure a policy while leaving evaluation disabled, but its fields must still be valid. Type filters are checked against the tenant when an export runs; local validation cannot verify which types it supports. If the filters leave no types selected, no export job is started. Durations accept Go units such as `30s` and `10m`, plus positive whole days such as `7d`.
+
+### Choose filenames
+
+Set `filename_mode` to `hex`, `id`, or `name`; `-filename-mode` overrides it for one
+run. Omission preserves the hex convention. Name mode appends `--<self.id>` only when filenames collide after escaping and
+profile prefixes. All members of a collision group receive IDs. Set
+`"filename_append_id": true` to force the suffix on all name-mode files; it defaults
+to false. Lifecycle-state files additionally prepend the identity profile name
+from `object.identityProfileRef`; missing or incomplete references fail name-mode
+validation. Set `"filename_escape": true` in `exporter.json` to encode unsafe
+characters, including colons in compound IDs. Literal `%` is encoded as `%25`;
+reserved Windows device prefixes and leading spaces are escaped as well. The
+original envelope values remain unchanged. ID/name modes fail on any unresolved compatibility
+issue without publishing a snapshot or running backup evaluation. Use
+`-check-filenames` to download an export and assess both alternatives without local
+publication. The report uses `filename_escape` from the policy and shows proposed
+paths after escaping. The check remains a CLI action, not a policy setting. It cannot be combined with `-cleanup-preview` or `-retrieve-mappings`.
+`-validate` checks these settings locally without creating a remote job. See
+[snapshot filename compatibility](SNAPSHOTS.md#filename-compatibility).
 
 ### Choose export types
 

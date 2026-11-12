@@ -25,6 +25,8 @@ The original configexporter source code and documentation are licensed under the
 | golang.org/x/text | v0.28.0 | BSD-3-Clause |
 | gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 (see its license/notice) |
 
+The snapshot package directly uses `golang.org/x/text` for Unicode normalization and case folding in filename collision checks.
+
 The SDK uses retryablehttp and validator. The HashiCorp HTTP dependencies are licensed under MPL-2.0, which has file-level copyleft obligations. No dependency source is modified. Any later distribution must preserve the license notices and satisfy the applicable source-availability obligations for the MPL-covered files (upstream source: [go-retryablehttp](https://github.com/hashicorp/go-retryablehttp/tree/v0.7.8) and [go-cleanhttp](https://github.com/hashicorp/go-cleanhttp/tree/v0.5.2)).
 
 Additional dependency-test notices are retained for: kr/pretty v0.3.1 (MIT), kr/text v0.2.0 (MIT), rogpeppe/go-internal v1.9.0 (BSD-3-Clause), gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c (BSD-style two-clause). They are not linked into the CLI. License notices are retained for traceability. Other modules can appear in the SDK module graph without being linked into the CLI. Contributor instructions for refreshing the inventory are in [development](DEVELOPMENT.md#dependency-review).

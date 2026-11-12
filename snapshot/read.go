@@ -20,7 +20,7 @@ type Mode string
 
 const (
 	// SnapshotMode reads only manifest-listed files and verifies checksums and counts.
-	// A valid schema 1 manifest and envelope version 1 objects are required.
+	// A valid schema 1 through 5 manifest and envelope version 1 objects are required.
 	SnapshotMode Mode = "snapshot"
 	// TreeMode inventories current object files, including edits, additions and
 	// deletions. A manifest supplies scope and historical metadata; without one,
@@ -78,6 +78,13 @@ type Options struct {
 	Label string
 	// Environment is an optional logical environment label carried into Input.
 	Environment string
+	// FilenameMode supplies naming only for a manifest-free tree; empty means hex.
+	// With a manifest, a nonempty value must match its declared mode.
+	FilenameMode FilenameMode
+	// FilenameEscape enables escaping for a manifest-free tree. A true value
+	// alongside a manifest must match its declared escaping policy.
+	FilenameEscape   bool
+	FilenameAppendID bool
 	// Types supplies scope only for [TreeMode] without a manifest. A nonempty list
 	// with any manifest, or in [SnapshotMode], is an error. Names must pass ValidateTypes.
 	Types []string
@@ -145,7 +152,7 @@ func read(root string, o Options, afterPin func()) (Input, error) {
 			return zero, e
 		}
 		for _, a := range m.Artifacts {
-			if !ManagedPath(a.Path) {
+			if !ManagedPathWithMode(a.Path, m.FilenameMode) {
 				return zero, errors.New("unsafe artifact path")
 			}
 			if e = read(a.Path); e != nil {
@@ -153,6 +160,14 @@ func read(root string, o Options, afterPin func()) (Input, error) {
 			}
 		}
 	} else if o.Mode == TreeMode {
+		mode := o.FilenameMode
+		if b, ok := files["manifest.json"]; ok {
+			var m Manifest
+			if e := decodeManifest(b, &m); e != nil {
+				return zero, e
+			}
+			mode = m.FilenameMode
+		}
 		e = fs.WalkDir(r.FS(), ".", func(p string, d fs.DirEntry, e error) error {
 			if e != nil {
 				return e
@@ -173,7 +188,7 @@ func read(root string, o Options, afterPin func()) (Input, error) {
 				return errors.New("nested symlink or special file")
 			}
 			if !d.IsDir() && strings.HasSuffix(p, ".json") && p != "manifest.json" {
-				if !ManagedPath(p) {
+				if !ManagedPathWithMode(p, mode) {
 					return errors.New("unrecognized JSON configuration path")
 				}
 				return read(p)
@@ -253,10 +268,15 @@ func decodeManifest(b []byte, m *Manifest) error {
 	// Decode exact contract spellings. Unknown metadata remains represented by the
 	// original manifest hash; case aliases must not override canonical properties.
 	known := map[string]any{}
-	for _, k := range []string{"schema", "tenant", "job_id", "completed", "types", "counts", "artifacts", "changes"} {
+	for _, k := range []string{"schema", "filename_mode", "filename_escape", "filename_append_id", "tenant", "job_id", "completed", "types", "counts", "artifacts", "changes"} {
 		if x, ok := root[k]; ok {
 			known[k] = x
 		}
+	}
+	var pathMeta Manifest
+	metaBytes, _ := json.Marshal(known)
+	if e := json.Unmarshal(metaBytes, &pathMeta); e != nil || !validManifestNaming(pathMeta) {
+		return errors.New("unsupported manifest naming mode or schema")
 	}
 	if artifacts, ok := known["artifacts"].([]any); ok {
 		for _, v := range artifacts {
@@ -266,7 +286,7 @@ func decodeManifest(b []byte, m *Manifest) error {
 			}
 			p, pok := a["path"].(string)
 			hash, hok := a["sha256"].(string)
-			if !pok || !hok || !ManagedPath(p) || len(hash) != 64 || strings.ToLower(hash) != hash {
+			if !pok || !hok || !ManagedPathWithMode(p, pathMeta.FilenameMode) || len(hash) != 64 || strings.ToLower(hash) != hash {
 				return errors.New("invalid artifact metadata")
 			}
 			if _, e := hex.DecodeString(hash); e != nil {
@@ -278,7 +298,7 @@ func decodeManifest(b []byte, m *Manifest) error {
 	if e = json.Unmarshal(encoded, m); e != nil {
 		return errors.New("invalid manifest")
 	}
-	if m.Schema != 1 || !portable(m.Tenant) || m.JobID == "" || m.Completed.IsZero() {
+	if !validManifestNaming(*m) || !portable(m.Tenant) || m.JobID == "" || m.Completed.IsZero() {
 		return errors.New("unsupported or incomplete manifest")
 	}
 	if e := ValidateTypes(m.Types); e != nil {
@@ -342,6 +362,9 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 	if o.Mode != SnapshotMode && o.Mode != TreeMode {
 		return fail("explicit input mode required")
 	}
+	if !o.FilenameMode.Valid() {
+		return fail("unknown filename mode")
+	}
 	m := Manifest{}
 	if b, ok := files["manifest.json"]; ok {
 		if e := decodeManifest(b, &m); e != nil {
@@ -360,6 +383,15 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 		}
 		m.Types = append([]string{}, o.Types...)
 	}
+	if m.Schema != 0 {
+		if (o.FilenameMode != "" && o.FilenameMode.Effective() != m.FilenameMode.Effective()) || (o.FilenameEscape && !m.FilenameEscape) || (o.FilenameAppendID && !m.FilenameAppendID) {
+			return fail("filename mode override conflicts with manifest")
+		}
+	} else {
+		m.FilenameMode = o.FilenameMode
+		m.FilenameEscape = o.FilenameEscape
+		m.FilenameAppendID = o.FilenameAppendID
+	}
 	if e := ValidateTypes(m.Types); e != nil {
 		return Input{}, e
 	}
@@ -373,7 +405,7 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 	}
 	listed := map[string]Artifact{}
 	for _, a := range m.Artifacts {
-		if !ManagedPath(a.Path) || listed[a.Path].Path != "" {
+		if !ManagedPathWithMode(a.Path, m.FilenameMode) || listed[a.Path].Path != "" {
 			return fail("invalid or duplicate artifact path")
 		}
 		listed[a.Path] = a
@@ -392,9 +424,10 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 	}
 	sort.Strings(paths)
 	seen := map[string]bool{}
+	identities := map[string]bool{}
 	content := []Artifact{}
 	for _, p := range paths {
-		if !ManagedPath(p) {
+		if !ManagedPathWithMode(p, m.FilenameMode) {
 			return fail("unsafe artifact path")
 		}
 		b, ok := files[p]
@@ -417,18 +450,42 @@ func FromFiles(files map[string][]byte, o Options) (Input, error) {
 		if e != nil {
 			return Input{}, e
 		}
-		expected, e := ObjectPath(typ, id)
+		expected, e := pathForManifest(typ, id, env, m)
+		if (m.Schema == 0 || m.Schema >= 5) && m.FilenameMode == NameFilename && !m.FilenameAppendID && expected != p {
+			opts := optionsForObject(Object{Type: typ, ID: id, Envelope: env}, FilenameOptions{Mode: m.FilenameMode, Escape: m.FilenameEscape})
+			expected, e = objectPathWithFormat(typ, id, Name(env), opts, false, true)
+		}
 		if e != nil || expected != p || !selected[typ] {
 			return fail("type, path, identity or scope mismatch")
 		}
-		key := strings.ToLower(p)
+		key := CollisionKey(p)
 		if seen[key] {
 			return fail("conflicting physical identity")
 		}
 		seen[key] = true
+		identity := typ + "\x00" + id
+		if identities[identity] {
+			return fail("duplicate object identity")
+		}
+		identities[identity] = true
 		counts[typ]++
 		out.Objects = append(out.Objects, Object{typ, id, p, env})
 		content = append(content, Artifact{Path: p, SHA256: hash})
+	}
+	if o.Mode == SnapshotMode && m.Schema >= 5 && m.FilenameMode == NameFilename {
+		report := CheckFilenamesWithOptions(out.Objects, FilenameOptions{Mode: m.FilenameMode, Escape: m.FilenameEscape, AppendID: m.FilenameAppendID})
+		if !report.Safe {
+			return fail("invalid filename plan")
+		}
+		actual := map[string]string{}
+		for _, obj := range out.Objects {
+			actual[obj.Type+"\x00"+obj.ID] = obj.Path
+		}
+		for _, file := range report.Files {
+			if actual[file.Type+"\x00"+file.ID] != file.Path {
+				return fail("filename does not match inventory naming policy")
+			}
+		}
 	}
 	if o.Mode == SnapshotMode {
 		if len(m.Counts) != len(counts) {

@@ -5,7 +5,7 @@ import "time"
 // Artifact describes an object file relative to its snapshot generation.
 // Data carries bytes for publication; it is omitted from serialized manifests.
 type Artifact struct {
-	// Path is the canonical TYPE/id-<lowercase UTF-8 hex ID>.json relative path.
+	// Path is the canonical relative path under the selected filename mode.
 	Path string `json:"path"`
 	// SHA256 is the lowercase hexadecimal SHA-256 checksum of the exact file bytes.
 	SHA256 string `json:"sha256"`
@@ -27,12 +27,18 @@ type Changes struct {
 	Deleted []string `json:"deleted"`
 }
 
-// Manifest describes an exported generation using schema 1. It is not a signature
+// Manifest describes an exported generation using schemas 1-5 (hex, literal, escaped/name+ID, profile-prefixed names, conditional IDs). It is not a signature
 // or proof of remote job success. In TreeMode, its counts and artifact checksums
 // describe the source export, not the edited inventory in Input.Objects.
 type Manifest struct {
-	// Schema is the exporter storage format version, currently 1.
+	// Schema is the exporter storage format version: 1 for hex, 2 for legacy literal naming, 3 for escaping/name+ID, 4 for always-suffixed profile names, 5 for conditional IDs.
 	Schema int `json:"schema"`
+	// FilenameMode is required for schemas 2-5; omitted for legacy schema 1 (hex).
+	FilenameMode FilenameMode `json:"filename_mode,omitempty"`
+	// FilenameEscape enables canonical percent escaping in schemas 3-5.
+	FilenameEscape bool `json:"filename_escape,omitempty"`
+	// FilenameAppendID forces IDs on all schema 5 name-mode files.
+	FilenameAppendID bool `json:"filename_append_id,omitempty"`
 	// Tenant is the tenant identity checked against the export document.
 	Tenant string `json:"tenant"`
 	// JobID identifies the remote export job, not a verified backup association.

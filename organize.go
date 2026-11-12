@@ -22,6 +22,57 @@ func portable(s string) bool { return snapfmt.ValidateTypes([]string{s}) == nil 
 // JSON map keys are ordered. completed becomes the UTC manifest completion time.
 // FileStore.Publish computes changes relative to the previous saved snapshot.
 func BuildSnapshot(tenant string, d Download, completed time.Time) (snapfmt.Snapshot, error) {
+	return BuildSnapshotWithNaming(tenant, d, completed, snapfmt.HexFilename)
+}
+
+// BuildSnapshotWithNaming builds a snapshot with hex (the legacy default), exact
+// ID or readable name filenames with IDs added for collisions. All compatibility issues in the selected mode
+// are returned as *snapshot.FilenameError before any filesystem publication.
+func BuildSnapshotWithNaming(tenant string, d Download, completed time.Time, mode snapfmt.FilenameMode) (snapfmt.Snapshot, error) {
+	return BuildSnapshotWithFilenameOptions(tenant, d, completed, snapfmt.FilenameOptions{Mode: mode})
+}
+
+// BuildSnapshotWithFilenameOptions applies optional reversible escaping before
+// validating filenames and collisions. The original envelope remains unchanged.
+func BuildSnapshotWithFilenameOptions(tenant string, d Download, completed time.Time, opts snapfmt.FilenameOptions) (snapfmt.Snapshot, error) {
+	mode := opts.Mode
+	if !mode.Valid() {
+		return snapfmt.Snapshot{}, errors.New("filename mode must be hex, id or name")
+	}
+	out, e := buildHexSnapshot(tenant, d, completed)
+	if e != nil || mode.Effective() == snapfmt.HexFilename {
+		return out, e
+	}
+	objects, e := snapshotObjects(out)
+	if e != nil {
+		return snapfmt.Snapshot{}, e
+	}
+	report := snapfmt.CheckFilenamesWithOptions(objects, opts)
+	if !report.Safe {
+		return snapfmt.Snapshot{}, &snapfmt.FilenameError{Report: report}
+	}
+	planned := map[string]string{}
+	for _, file := range report.Files {
+		planned[file.Type+"\x00"+file.ID] = file.Path
+	}
+	for i, obj := range objects {
+		out.Artifacts[i].Path = planned[obj.Type+"\x00"+obj.ID]
+	}
+	sort.Slice(out.Artifacts, func(i, j int) bool { return out.Artifacts[i].Path < out.Artifacts[j].Path })
+	out.Manifest.Schema, out.Manifest.FilenameMode = 2, mode
+	if mode == snapfmt.NameFilename || opts.Escape {
+		out.Manifest.Schema = 3
+	}
+	if mode == snapfmt.NameFilename {
+		out.Manifest.Schema = 5
+		out.Manifest.FilenameAppendID = opts.AppendID
+	}
+	out.Manifest.FilenameEscape = opts.Escape
+	out.Manifest.Artifacts = append([]snapfmt.Artifact{}, out.Artifacts...)
+	return out, nil
+}
+
+func buildHexSnapshot(tenant string, d Download, completed time.Time) (snapfmt.Snapshot, error) {
 	var out snapfmt.Snapshot
 	if !portable(tenant) || d.JobID == "" {
 		return out, errors.New("invalid export identity")

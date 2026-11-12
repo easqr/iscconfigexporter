@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 	"log/slog"
 	"time"
 )
@@ -51,7 +52,7 @@ func (s Service) Export(ctx context.Context) (Result, error) {
 	if e != nil {
 		return out, exportFailure(d.JobID, e)
 	}
-	snap, e := BuildSnapshot(s.Engine.Config.Tenant, d, time.Now())
+	snap, e := BuildSnapshotWithFilenameOptions(s.Engine.Config.Tenant, d, time.Now(), snapfmt.FilenameOptions{Mode: s.Engine.Config.FilenameMode, Escape: s.Engine.Config.FilenameEscape, AppendID: s.Engine.Config.FilenameAppendID})
 	if e != nil {
 		return out, exportFailure(d.JobID, fmt.Errorf("cannot prepare export files: %w", e))
 	}

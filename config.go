@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 )
 
 // Config specifies export policy, without SDK connection settings or credentials.
@@ -21,6 +23,14 @@ type Config struct {
 	Tenant string `json:"tenant"`
 	// Output is the private local directory for snapshots; the default is exports.
 	Output string `json:"output"`
+	// FilenameMode selects hex (default), id or name for object filenames.
+	FilenameMode snapfmt.FilenameMode `json:"filename_mode"`
+	// FilenameEscape percent-encodes unsafe filename characters in ID/name modes.
+	// It defaults to false and has no effect in hex mode.
+	FilenameEscape bool `json:"filename_escape"`
+	// FilenameAppendID forces the ID suffix on all name-mode files; default false
+	// adds IDs only to filenames that would otherwise collide.
+	FilenameAppendID bool `json:"filename_append_id"`
 	// Include selects exact exportable type names. Empty includes all discovered types.
 	Include []string `json:"include"`
 	// Exclude removes exact type names. It cannot overlap Include or contain duplicates.
@@ -64,7 +74,7 @@ type BackupConfig struct {
 // DefaultConfig returns policy defaults with backup evaluation disabled. Tenant
 // is empty and must be supplied before validation or export.
 func DefaultConfig() Config {
-	return Config{Output: "exports", Timeout: "10m", PollInterval: "5s", Retries: 3, Backoff: "1s", LogLevel: "info", Backup: BackupConfig{Policy: "disabled"}}
+	return Config{FilenameMode: snapfmt.HexFilename, Output: "exports", Timeout: "10m", PollInterval: "5s", Retries: 3, Backoff: "1s", LogLevel: "info", Backup: BackupConfig{Policy: "disabled"}}
 }
 
 // LoadConfig reads one JSON policy, applies defaults and validates local settings.
@@ -124,6 +134,9 @@ func (c Config) Validate() error {
 		return errors.New("tenant must be 1-100 ASCII letters, digits, hyphens or underscores, start with a letter or digit, and not be a reserved device name")
 	}
 
+	if !c.FilenameMode.Valid() {
+		return errors.New("filename_mode must be hex, id or name")
+	}
 	if strings.TrimSpace(c.Output) == "" {
 		return errors.New("output must specify a directory for exported snapshots")
 	}

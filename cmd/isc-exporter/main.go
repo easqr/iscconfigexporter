@@ -9,6 +9,7 @@ import (
 	exporter "github.com/easqr/iscconfigexporter"
 	"github.com/easqr/iscconfigexporter/internal/buildinfo"
 	"github.com/easqr/iscconfigexporter/sdk"
+	snapfmt "github.com/easqr/iscconfigexporter/snapshot"
 	"io"
 	"log/slog"
 	"os"
@@ -33,6 +34,8 @@ func runWithAdapter(ctx context.Context, args []string, out, errOut io.Writer, n
 	version := flags.Bool("version", false, "print version, commit, modification state, Go version and platform without loading configuration")
 	p := flags.String("config", "exporter.json", "exporter policy `file`; SDK connection settings use a separate config.json")
 	validate := flags.Bool("validate", false, "check local policy and options without contacting ISC or checking credentials")
+	naming := flags.String("filename-mode", "", "override policy filename_mode: hex (default), id or name")
+	checkNames := flags.Bool("check-filenames", false, "download an ISC export and report ID/name filename issues without publishing files or evaluating backups")
 	preview := flags.Bool("cleanup-preview", false, "preview the enabled backup policy after exporting; still writes an export")
 	retrieve := flags.Bool("retrieve-mappings", false, "save Configuration Hub mappings instead of exporting configuration")
 	source := flags.String("mapping-source-org", "", "source `organization` for -retrieve-mappings; use default for unassociated mappings")
@@ -49,6 +52,8 @@ Examples:
   isc-exporter -config exporter.json -validate
   isc-exporter -config exporter.json
   isc-exporter -config exporter.json -cleanup-preview
+  isc-exporter -config exporter.json -filename-mode name
+  isc-exporter -config exporter.json -check-filenames
   isc-exporter -config exporter.json -retrieve-mappings \
     -mapping-source-org default -mapping-output ./mapping-archives/new-archive
 
@@ -91,6 +96,20 @@ Options (use -help or -h to show this help):`)
 	}
 	if ce != nil {
 		return fmt.Errorf("cannot close exporter policy %q: %w", *p, ce)
+	}
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "filename-mode" {
+			c.FilenameMode = snapfmt.FilenameMode(*naming)
+			if *naming == "" {
+				c.FilenameMode = "invalid"
+			}
+		}
+	})
+	if e := c.Validate(); e != nil {
+		return e
+	}
+	if *checkNames && (*retrieve || *preview) {
+		return errors.New("-check-filenames cannot be combined with -retrieve-mappings or -cleanup-preview")
 	}
 	mappingOptions := false
 	flags.Visit(func(f *flag.Flag) {
@@ -158,6 +177,21 @@ Options (use -help or -h to show this help):`)
 		lifecycle.Registry = exporter.FileRegistry{Path: c.Backup.Registry}
 	}
 	service := exporter.Service{Engine: exporter.Engine{Config: c, API: api}, Store: exporter.FileStore{Output: c.Output}, Lifecycle: lifecycle, Logger: logger}
+	if *checkNames {
+		report, e := service.CheckFilenames(ctx)
+		if e != nil {
+			return e
+		}
+		if e = json.NewEncoder(out).Encode(report); e != nil {
+			return fmt.Errorf("cannot write filename compatibility report: %w", e)
+		}
+		for _, mode := range report.Modes {
+			if !mode.Safe {
+				return fmt.Errorf("filename compatibility issues found in export job %q; see the JSON report; no snapshot was published", report.JobID)
+			}
+		}
+		return nil
+	}
 	result, e := service.Export(ctx)
 	if e != nil {
 		return e

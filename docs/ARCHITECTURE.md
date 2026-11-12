@@ -46,13 +46,13 @@ Exporter-generated completion timestamps are stored in the manifest; timestamps 
 in exported payloads are preserved. This is deterministic JSON, not a cryptographic JSON
 canonicalization standard; no signatures are regenerated or claimed verified.
 
-IDs become `id-<UTF-8 hex>.json`, a reversible portable encoding that avoids colon
+By default, IDs become `id-<UTF-8 hex>.json`, a reversible portable encoding that avoids colon
 substitution and case-fold collisions. Slash, backslash, control characters, dot
 identities and IDs over 100 bytes fail validation. Tenant/type names use restricted
 portable identifiers; device names are forbidden. Case-folded path collisions fail
 closed.
 
-### Why filenames use IDs instead of object names
+### Why filenames default to encoded IDs
 
 ISC object names are display values, not portable filesystem identifiers. Naming
 constraints vary by object type; the published Source and Transform schemas do not
@@ -87,7 +87,24 @@ Encoding the stable ID in lowercase hexadecimal preserves distinct accepted IDs,
 keeps paths unchanged when objects are renamed, and avoids name sanitization and
 Unicode normalization collisions. The 100-byte ID limit caps the filename at 208
 ASCII bytes, including `id-` and `.json`. The original name remains readable in the
-object JSON. Portable artifact filenames do not imply Windows publication support:
+object JSON. Callers can explicitly select ID or name--ID filenames instead;
+these modes fail before publication if portability checks find an unresolved issue.
+The opt-in `filename_escape` policy reversibly percent-encodes unsafe characters
+and literal percent signs. Name mode adds IDs to all files in a collision group after escaping and profile
+prefixes; `filename_append_id` forces suffixes on every name-mode file and defaults
+to false. Generated suffixes are checked again for secondary collisions.
+Strict ID exports use schema 2, escaped ID exports use schema 3, and new name--ID
+exports use schema 5, with explicit naming metadata. Lifecycle-state
+filenames prepend the parent name from `object.identityProfileRef`; incomplete
+references fail name-mode validation. The prefix is escaped and length-checked
+with the state name and ID. Schema 3 retains the previous unprefixed name--ID
+interpretation and escaped ID exports. Readers retain schema
+2's earlier name-only interpretation and schema 4's always-suffixed profile-aware
+filenames. Default hex exports retain schema 1. Readers
+validate paths against the declared mode and object envelope.
+A check-only action downloads an export and reports both alternatives without
+publishing files or evaluating backups. See [filename compatibility](SNAPSHOTS.md#filename-compatibility)
+for conservative comparison rules and limits. Portable artifact filenames do not imply Windows publication support:
 `FileStore` has separate POSIX storage requirements described below.
 
 The [snapshot reference](SNAPSHOTS.md) describes filenames, manifest fields and reader

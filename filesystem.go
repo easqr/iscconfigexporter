@@ -39,11 +39,11 @@ func validateSnapshot(s snapfmt.Snapshot) error {
 		raw = append(raw, a.Data...)
 	}
 	raw = append(raw, ']', '}')
-	v, e := BuildSnapshot(s.Manifest.Tenant, Download{s.Manifest.JobID, s.Manifest.Types, raw}, s.Manifest.Completed)
+	v, e := BuildSnapshotWithFilenameOptions(s.Manifest.Tenant, Download{s.Manifest.JobID, s.Manifest.Types, raw}, s.Manifest.Completed, snapfmt.FilenameOptions{Mode: s.Manifest.FilenameMode, Escape: s.Manifest.FilenameEscape, AppendID: s.Manifest.FilenameAppendID})
 	if e != nil {
 		return e
 	}
-	if !reflect.DeepEqual(s.Artifacts, v.Artifacts) || !reflect.DeepEqual(s.Manifest.Artifacts, v.Manifest.Artifacts) || !reflect.DeepEqual(s.Manifest.Counts, v.Manifest.Counts) || s.Manifest.Schema != 1 {
+	if !reflect.DeepEqual(s.Artifacts, v.Artifacts) || !reflect.DeepEqual(s.Manifest.Artifacts, v.Manifest.Artifacts) || !reflect.DeepEqual(s.Manifest.Counts, v.Manifest.Counts) || s.Manifest.Schema != v.Manifest.Schema || s.Manifest.FilenameMode != v.Manifest.FilenameMode || s.Manifest.FilenameEscape != v.Manifest.FilenameEscape || s.Manifest.FilenameAppendID != v.Manifest.FilenameAppendID {
 		return errors.New("snapshot metadata or artifacts inconsistent")
 	}
 	return nil
@@ -141,15 +141,16 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 		if oldErr != nil || !oldInfo.IsDir() {
 			return zero, errors.New("the previous snapshot generation is missing or is not a directory; inspect the tenant symbolic link")
 		}
-		data, e := r.ReadFile(old + "/manifest.json")
+		previous, e := snapfmt.Read(filepath.Join(s.Output, old), snapfmt.Options{Mode: snapfmt.SnapshotMode})
 		if e != nil {
-			return zero, e
+			return zero, fmt.Errorf("previous snapshot is invalid: %w", e)
 		}
-		if e = json.Unmarshal(data, &prior); e != nil || prior.Tenant != tenant || prior.Schema != 1 {
-			return zero, errors.New("the previous snapshot manifest is invalid or belongs to another tenant; inspect it or choose a fresh output directory")
+		prior = previous.Manifest
+		if prior.Tenant != tenant {
+			return zero, errors.New("the previous snapshot manifest belongs to another tenant; inspect it or choose a fresh output directory")
 		}
 		for _, a := range prior.Artifacts {
-			if !snapfmt.ManagedPath(a.Path) || oldFiles[a.Path].Path != "" {
+			if !snapfmt.ManagedPathWithMode(a.Path, prior.FilenameMode) || oldFiles[a.Path].Path != "" {
 				return zero, errors.New("the previous manifest contains an unsafe or duplicate file path; inspect it or choose a fresh output directory")
 			}
 			b, e := r.ReadFile(old + "/" + a.Path)
@@ -197,7 +198,7 @@ func (s FileStore) Publish(ctx context.Context, snap snapfmt.Snapshot) (snapfmt.
 				return nil
 			}
 			for _, a := range snap.Artifacts {
-				if strings.EqualFold(p, a.Path) {
+				if snapfmt.CollisionKey(p) == snapfmt.CollisionKey(a.Path) {
 					return errors.New("an export file would overwrite an unmanaged local file; preserve and move that file, or choose a fresh output directory")
 				}
 			}
