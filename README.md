@@ -27,10 +27,10 @@ access. Exported values are saved without redaction or encryption.
 
 ### 1. Get the source and build
 
-Clone the v0.8.0 release and build the command-line tool:
+Clone the v0.10.1 release and build the command-line tool:
 
 ```sh
-git clone --branch v0.8.0 https://github.com/easqr/iscconfigexporter.git
+git clone --branch v0.10.1 https://github.com/easqr/iscconfigexporter.git
 cd iscconfigexporter
 go build -o isc-exporter ./cmd/isc-exporter
 ```
@@ -185,7 +185,7 @@ for report fields, limitations, and reader compatibility.
 Add the published module from your application's Go module directory:
 
 ```sh
-go get github.com/easqr/iscconfigexporter@v0.8.0
+go get github.com/easqr/iscconfigexporter@v0.10.1
 ```
 
 Follow the [Go library guide](docs/LIBRARY.md) to configure the SDK, run an export,
