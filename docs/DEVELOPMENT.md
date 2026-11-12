@@ -4,7 +4,7 @@ This guide is for contributors. For building and using the exporter, start with 
 
 ## Local checks
 
-Use Go 1.27.3 or newer, including for release builds. Go 1.27.3 fixes the certificate-validation vulnerability [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809). Check `go version` before building; updating `go.mod` does not patch an already built binary.
+Use Go 1.27.4 or newer, including for release builds. Go 1.27.4 includes the fixes for [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809) and [GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859). Check `go version` before building; updating `go.mod` does not patch an already built binary.
 
 Run the shared checks from the repository root:
 
@@ -30,7 +30,7 @@ The Make targets are also available individually:
 | `make release-build VERSION=v0.7.0` | Require a clean checkout and matching tag at HEAD, run release checks, then build with that release version |
 | `make toolchain` | Print the selected Go version |
 
-Make targets select Go 1.27.3 through `GOTOOLCHAIN` and use read-only module mode so checks cannot update `go.mod` or `go.sum`. Formatting uses `gofmt` from that selected toolchain. The version and scanner pin live in the Makefile. For an intentional toolchain upgrade, update that pin along with `go.mod` and the build requirements; a one-run evaluation can use `make GO_TOOLCHAIN=go1.27.4 check`. Format newly added Go files before staging them; the formatting targets inspect Git-tracked files, including staged additions.
+Make targets select Go 1.27.4 through `GOTOOLCHAIN` and use read-only module mode so checks cannot update `go.mod` or `go.sum`. Formatting uses `gofmt` from that selected toolchain. The version and scanner pin live in the Makefile. For an intentional toolchain upgrade, update that pin along with `go.mod` and the build requirements; a one-run evaluation can use `make GO_TOOLCHAIN=go1.27.4 check`. Format newly added Go files before staging them; the formatting targets inspect Git-tracked files, including staged additions.
 
 Test execution has a five-minute limit per package, configurable with `TEST_TIMEOUT`, for example `make TEST_TIMEOUT=10m test-race`. The race check needs a supported platform and a C compiler. Run filesystem validation on macOS with the storage requirements in [operations](OPERATIONS.md#snapshot-storage).
 

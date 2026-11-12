@@ -21,8 +21,8 @@ The original configexporter source code and documentation are licensed under the
 | spf13/pflag | v1.0.7 | BSD-3-Clause |
 | spf13/viper | v1.20.1 | MIT |
 | subosito/gotenv | v1.6.0 | MIT |
-| golang.org/x/sys | v0.35.0 | BSD-3-Clause |
-| golang.org/x/text | v0.28.0 | BSD-3-Clause |
+| golang.org/x/sys | v0.44.0 | BSD-3-Clause |
+| golang.org/x/text | v0.41.0 | BSD-3-Clause |
 | gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 (see its license/notice) |
 
 The snapshot package directly uses `golang.org/x/text` for Unicode normalization and case folding in filename collision checks.

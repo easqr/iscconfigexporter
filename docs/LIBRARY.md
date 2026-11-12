@@ -5,7 +5,7 @@ existing snapshot. For the command-line walkthrough, see the [README](../README.
 
 ## Install the module
 
-Use Go 1.27.3 or newer. For a new application, create a directory and initialize
+Use Go 1.27.4 or newer. For a new application, create a directory and initialize
 its Go module before adding the exporter:
 
 ```sh

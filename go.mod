@@ -1,12 +1,12 @@
 module github.com/easqr/iscconfigexporter
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/sailpoint-oss/golang-sdk/v2 v2.7.106
 	github.com/spf13/viper v1.20.1
-	golang.org/x/text v0.28.0
+	golang.org/x/text v0.41.0
 )
 
 require (
@@ -21,7 +21,7 @@ require (
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

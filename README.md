@@ -12,7 +12,7 @@ an application, go to [Go library usage](#library-usage).
 
 You will need:
 
-- Go **1.27.3 or newer** and Git to build from source.
+- Go **1.27.4 or newer** and Git to build from source.
 - Network access to download dependencies and connect to your ISC tenant.
 - Your tenant's API URL and SDK client credentials with permission to export
   configuration (`sp:config:read`). Confirm the required tenant role with your administrator.
